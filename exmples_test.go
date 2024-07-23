@@ -74,6 +74,10 @@ func ExampleMiddlewareFunc() {
 			// Post-processing.
 			log.Printf("After request: Path=%v", r.URL.Path)
 		})
-	})
+	}, "logger")
 	gear.ListenAndServe(":80", nil, logMiddleware)
+}
+
+func ExamplePanicRecover() {
+	gear.ListenAndServe(":80", nil, gear.DefaultPanicRecover)
 }

@@ -3,8 +3,10 @@ package gear
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 
 	"github.com/mkch/gear/impl"
 )
@@ -16,15 +18,52 @@ const ctxKey contextKey = "gear"
 
 // Gear, the core of this framework.
 type Gear struct {
-	R       *http.Request       // R of this request.
-	W       http.ResponseWriter // W of this request.
-	handler http.Handler        // The middleware to handle the request.
+	R            *http.Request       // R of this request.
+	W            http.ResponseWriter // W of this request.
+	handler      http.Handler        // The middleware to handle the request.
+	loggers      []Logger            // All the loggers
+	panicRecover PanicRecover
+}
+
+// LogInfo passed msg to all LogInfo() methods of logger middlewares.
+func (g *Gear) LogInfo(msg string, arg ...any) {
+	for _, logger := range g.loggers {
+		logger.LogInfo(msg, arg...)
+	}
+}
+
+// LogError passed msg to all LogError() methods of logger middlewares.
+func (g *Gear) LogError(msg string, arg ...any) {
+	for _, logger := range g.loggers {
+		logger.LogError(msg, arg...)
+	}
 }
 
 // addMiddleware adds middlewares to g.
 func (g *Gear) addMiddleware(middlewares []Middleware) {
-	for _, mw := range middlewares {
+	var apply = func(mw Middleware) {
 		g.handler = mw.Wrap(g.handler)
+		if logger, ok := mw.(Logger); ok {
+			g.loggers = append(g.loggers, logger)
+		}
+		g.LogInfo(fmt.Sprintf("Middleware added: %v", middlewareName(mw)))
+	}
+
+	var panicRecover PanicRecover
+	for _, mw := range middlewares {
+		if r, ok := mw.(PanicRecover); ok {
+			if panicRecover != nil {
+				panic("only one PanicRecover is supported")
+			}
+			panicRecover = r
+			continue // PanicRecover must be added at the last.
+		}
+		apply(mw)
+	}
+
+	// PanicRecover must be the outermost wrapper.
+	if panicRecover != nil {
+		apply(panicRecover)
 	}
 }
 
@@ -34,13 +73,84 @@ type Middleware interface {
 	Wrap(h http.Handler) http.Handler
 }
 
-// MiddlewareFunc is an adapter to allow the use of ordinary functions as [Middleware].
-// If f is a function with the appropriate signature, MiddlewareFunc(f) is a Middleware that calls f.
-type MiddlewareFunc func(h http.Handler) http.Handler
+// MiddlewareName is an optional interface to be implemented by a [Middleware].
+// If a [Middleware] implements this interface, MiddlewareName() will be used
+// to get it's name, or the reflect type name will be used.
+type MiddlewareName interface {
+	MiddlewareName() string
+}
+
+// Logger is a [Middleware] that can log general messages.
+type Logger interface {
+	Middleware
+	LogInfo(msg string, args ...any)
+	LogError(msg string, args ...any)
+}
+
+// PanicRecover is a [Middleware] that recovers from panics.
+// A PanicRecover must call the handler set by SetHandler() after recovering.
+// At most one PanicRecover can be added to a Handler.
+type PanicRecover interface {
+	Middleware
+	PanicRecover()
+}
+
+// panicRecover is the default [PanicRecover] implementation.
+type panicRecover struct{}
+
+// Wrap implements [Middleware].
+func (p panicRecover) Wrap(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			v := recover()
+			if v != nil {
+				G(r).LogError("recovered from panic: %v", v)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
+}
+
+// MiddlewareName implements [MiddlewareName].
+func (p panicRecover) MiddlewareName() string {
+	return "PanicRecover"
+}
+
+// DefaultPanicRecover is the default [PanicRecover] implementation which calls
+//
+// Gear.LogError("recovered from panic: %v", v)
+//
+// where v is the recovered value.
+var DefaultPanicRecover = &panicRecover{}
+
+func middlewareName(m Middleware) string {
+	if n, ok := m.(MiddlewareName); ok {
+		return n.MiddlewareName()
+	}
+	return reflect.TypeOf(m).String()
+}
+
+// middlewareFunc wraps f and it's middleware name.
+// Used by MiddlewareFunc() function.
+type middlewareFunc struct {
+	name string
+	f    func(h http.Handler) http.Handler
+}
 
 // Wrap implements Wrap() method of [Middleware].
-func (f MiddlewareFunc) Wrap(h http.Handler) http.Handler {
-	return f(h)
+func (m middlewareFunc) Wrap(h http.Handler) http.Handler {
+	return m.f(h)
+}
+
+// MiddlewareName implements MiddlewareName() method of [MiddlewareName].
+func (m middlewareFunc) MiddlewareName() string {
+	return m.name
+}
+
+// MiddlewareFunc is an adapter to allow the use of ordinary functions as [Middleware].
+// Parameter name will be used as the name of Middleware.
+func MiddlewareFunc(f func(http.Handler) http.Handler, name string) Middleware {
+	return middlewareFunc{name, f}
 }
 
 // DecodeBody parses body and stores the result in the value pointed to by v.
@@ -65,22 +175,22 @@ func getGear(r *http.Request) any {
 
 // Wrap wraps handler and add Gear to it.
 // If handler is nil, http.DefaultServeMux will be used.
-// Parameter middlewares will be added to Gear if not empty.
+// Parameter middlewares will be added to the result Handler.
+// If there are more than one [PanicRecover] in middlewares, it panics.
 func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	if handler == nil {
 		handler = http.DefaultServeMux
 	}
+	var g *Gear = &Gear{handler: handler}
+	g.addMiddleware(middlewares)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var g *Gear
-		if val := getGear(r); val == nil {
+		if val := getGear(r); val != nil {
+			panic("already a Gear handler")
+		} else {
 			// No gear.
-			g = &Gear{handler: handler}
-			g.addMiddleware(middlewares)
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, ctxKey, g)
 			r = r.WithContext(ctx)
-		} else {
-			g = val.(*Gear)
 		}
 		g.R = r
 		g.W = w
@@ -90,7 +200,8 @@ func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 
 // WrapFunc wraps f to a handler and add Gear to it.
 // If f is nil, http.DefaultServeMux.ServeHTTP will be used.
-// Parameter middlewares will be added to Gear if not empty.
+// Parameter middlewares will be added to the result Handler.
+// If there are more than one [PanicRecover] in middlewares, it panics.
 func WrapFunc(f func(w http.ResponseWriter, r *http.Request), middlewares ...Middleware) http.Handler {
 	if f == nil {
 		f = http.DefaultServeMux.ServeHTTP
