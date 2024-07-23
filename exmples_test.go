@@ -1,13 +1,14 @@
 package gear_test
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/mkch/gear"
 )
 
-func ExampleHandler() {
-	var handler http.Handler = gear.Handler(
+func ExampleWrap() {
+	var handler http.Handler = gear.Wrap(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var g = gear.G(r)
 			// Use g here.
@@ -16,8 +17,8 @@ func ExampleHandler() {
 	http.Handle("/", handler)
 }
 
-func ExampleHandlerFunc() {
-	var handler http.Handler = gear.HandlerFunc(
+func ExampleWrapFunc() {
+	var handler http.Handler = gear.WrapFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			var g = gear.G(r)
 			// Use g here.
@@ -61,4 +62,18 @@ func ExampleNewTestServer() {
 		_ = g
 	}))
 	defer server.Close()
+}
+
+func ExampleMiddlewareFunc() {
+	var logMiddleware = gear.MiddlewareFunc(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Pre-processing.
+			log.Printf("Before request: Path=%v", r.URL.Path)
+			// Call the real handler.
+			h.ServeHTTP(w, r)
+			// Post-processing.
+			log.Printf("After request: Path=%v", r.URL.Path)
+		})
+	})
+	gear.ListenAndServe(":80", nil, logMiddleware)
 }
