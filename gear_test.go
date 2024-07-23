@@ -27,7 +27,6 @@ func TestJSONBodyDecoder(t *testing.T) {
 		io.WriteString(w, respBody)
 	})
 	server := gear.NewTestServer(http.DefaultServeMux)
-
 	defer server.Close()
 
 	body, vars := geartest.CurlPOST(server.URL, "application/json", `{"N":1, "S":"str"}`, "-w", "\n%{http_code}")
