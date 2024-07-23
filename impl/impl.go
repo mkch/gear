@@ -15,7 +15,7 @@ type BodyDecoder interface {
 	DecodeBody(body io.Reader, v any) error
 }
 
-// BodyDecoderFunc is an adapter to allow the use of ordinary functions as BodyDecoder.
+// BodyDecoderFunc is an adapter to allow the use of ordinary functions as [BodyDecoder].
 // If f is a function with the appropriate signature, BodyDecoderFunc(f) is a BodyDecoder that calls f.
 type BodyDecoderFunc func(body io.Reader, v any) error
 
@@ -30,7 +30,7 @@ func jsonBodyDecoder(body io.Reader, v any) error {
 // JSONBodyDecoder decodes body into JSON object.
 var JSONBodyDecoder = BodyDecoderFunc(jsonBodyDecoder)
 
-// UnknownContentType is returned by DecodeBody if there is no such BodyDecoder to decode the body.
+// UnknownContentType is returned by [DecodeBody] if there is no such [BodyDecoder] to decode the body.
 type UnknownContentType string
 
 func (err UnknownContentType) Error() string {
@@ -38,8 +38,8 @@ func (err UnknownContentType) Error() string {
 }
 
 // DecodeBody decodes r.Body using decoder and store the result in the value pointed to by v.
-// If decoder is nil Content-Type header of r is used to select an available decoder.
-// If there is no decoder available for that type, UnknownContentType error is returned.
+// If decoder is nil, Content-Type header of r wii be used to select an available decoder.
+// If there is no decoder available for that type, [UnknownContentType] error is returned.
 // See [BodyDecoder] for details.
 func DecodeBody(r *http.Request, decoder BodyDecoder, v any) (err error) {
 	if decoder == nil {
