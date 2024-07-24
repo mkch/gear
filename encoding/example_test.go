@@ -1,17 +1,17 @@
-package impl_test
+package encoding_test
 
 import (
 	"encoding/json"
 	"io"
 	"net/http"
 
-	"github.com/mkch/gear/impl"
+	"github.com/mkch/gear/encoding"
 )
 
 func ExampleBodyDecoder() {
 	var r *http.Request // From somewhere else.
 	// JSONBodyDecoder decodes body into JSON object.
-	var JSONBodyDecoder = impl.BodyDecoderFunc(func(body io.Reader, v any) error {
+	var JSONBodyDecoder = encoding.BodyDecoderFunc(func(body io.Reader, v any) error {
 		return json.NewDecoder(body).Decode(v)
 	})
 
@@ -19,5 +19,5 @@ func ExampleBodyDecoder() {
 		Code int
 		Msg  string
 	}
-	impl.DecodeBody(r, JSONBodyDecoder, &object)
+	encoding.DecodeBody(r, JSONBodyDecoder, &object)
 }
