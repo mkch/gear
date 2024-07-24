@@ -65,19 +65,17 @@ func ExampleNewTestServer() {
 }
 
 func ExampleMiddlewareFunc() {
-	var logMiddleware = gear.MiddlewareFunc(func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Pre-processing.
-			log.Printf("Before request: Path=%v", r.URL.Path)
-			// Call the real handler.
-			h.ServeHTTP(w, r)
-			// Post-processing.
-			log.Printf("After request: Path=%v", r.URL.Path)
-		})
+	var logMiddleware = gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		// Pre-processing.
+		log.Printf("Before request: Path=%v", g.R.URL.Path)
+		// Call the real handler.
+		next(g)
+		// Post-processing.
+		log.Printf("After request: Path=%v", g.R.URL.Path)
 	}, "logger")
 	gear.ListenAndServe(":80", nil, logMiddleware)
 }
 
 func ExamplePanicRecover() {
-	gear.ListenAndServe(":80", nil, gear.DefaultPanicRecover)
+	gear.ListenAndServe(":80", nil, gear.PanicRecovery(nil))
 }

@@ -1,8 +1,8 @@
 package gear_test
 
 import (
+	"fmt"
 	"log"
-	"net/http"
 
 	"github.com/mkch/gear"
 )
@@ -10,17 +10,14 @@ import (
 // LogMiddleware is a middleware to log HTTP message.
 type LogMiddleware log.Logger
 
-// Wrap implements Middleware.Wrap().
-func (l *LogMiddleware) Wrap(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Log a message.
-		(*log.Logger)(l).Printf("Method: %v Path: %v", r.Method, r.URL.Path)
-		// Call the original handler.
-		h.ServeHTTP(w, r)
-	})
+// Serve implements gear.Middleware.
+func (l *LogMiddleware) Serve(g *gear.Gear, next func(*gear.Gear)) {
+	fmt.Printf("%v %v", g.R.Method, g.R.URL)
+	// Call the real handler.
+	next(g)
 }
 
 func ExampleMiddleware() {
 	// Use LogMiddleware.
-	gear.ListenAndServe("80", nil, (*LogMiddleware)(log.Default()))
+	gear.ListenAndServe(":80", nil, (*LogMiddleware)(log.Default()))
 }
