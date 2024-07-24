@@ -65,7 +65,7 @@ func ExampleNewTestServer() {
 }
 
 func ExampleMiddlewareFunc() {
-	var logMiddleware = gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+	var logMiddleware = gear.MiddlewareFuncWitName(func(g *gear.Gear, next func(*gear.Gear)) {
 		// Pre-processing.
 		log.Printf("Before request: Path=%v", g.R.URL.Path)
 		// Call the real handler.
@@ -76,6 +76,19 @@ func ExampleMiddlewareFunc() {
 	gear.ListenAndServe(":80", nil, logMiddleware)
 }
 
-func ExamplePanicRecover() {
+func ExamplePanicRecovery() {
 	gear.ListenAndServe(":80", nil, gear.PanicRecovery(nil))
+}
+
+func ExamplePathInterceptor() {
+	var handler = gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		// Do admin authentication.
+		var authOK bool
+		if !authOK {
+			http.Error(g.W, "", http.StatusUnauthorized)
+			g.Stop()
+		}
+	})
+	// "/admin" and all paths starts with "/admin/" will be intercepted by handler.
+	gear.ListenAndServe(":80", nil, gear.NewPathInterceptor("/admin", handler))
 }

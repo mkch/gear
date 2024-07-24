@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
+	pathlib "path"
 	"slices"
+	"strings"
 
 	"github.com/mkch/gear/impl"
 )
@@ -27,7 +28,6 @@ type Gear struct {
 	middlewares []Middleware        // The middlewares to handle the request.
 	curMW       int                 // The index of current middleware.
 	stopped     bool                // Whether g.Stop() has been called.
-	logger      *log.Logger
 }
 
 // Stop stops calling subsequent handling.
@@ -39,11 +39,6 @@ func (g *Gear) Stop() {
 // addMiddleware adds middlewares to g.
 func (g *Gear) addMiddleware(middlewares []Middleware) {
 	g.middlewares = slices.Clone(middlewares)
-	if LogDebug {
-		for _, m := range g.middlewares {
-			g.logger.Printf("Middleware added: %v", middlewareName(m))
-		}
-	}
 	if n := len(g.middlewares); n > 0 {
 		g.curMW = n - 1 // Serve from the last to the first.
 	}
@@ -71,16 +66,10 @@ func (g *Gear) serveMiddlewares() {
 		if g.curMW >= 0 {
 			g.serveMiddlewares()
 		} else {
-			// Prepare for the next run
-			// Defer is used in case g.handler.ServeHTTP() panics.
-			defer func() { g.curMW = len(g.middlewares) - 1 }()
 			g.handler.ServeHTTP(g.W, g.R)
 		}
 	})
 }
-
-// LogDebug indicates whether log debug message to DefaultLogWriter.
-var LogDebug bool
 
 // DefaultLogWriter is the writer where the default log output.
 var DefaultLogWriter io.Writer = os.Stderr
@@ -99,6 +88,7 @@ type MiddlewareName interface {
 }
 
 // panicRecovery is the default [Middleware] recovers from panics.
+// It sends 500 response and stops the gear.
 type panicRecovery log.Logger
 
 // Serve implements [Middleware].
@@ -107,6 +97,8 @@ func (p *panicRecovery) Serve(g *Gear, next func(*Gear)) {
 		v := recover()
 		if v != nil {
 			(*log.Logger)(p).Printf("recovered from panic: %v", v)
+			http.Error(g.W, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			g.Stop()
 		}
 	}()
 	next(g)
@@ -117,19 +109,19 @@ func (p *panicRecovery) MiddlewareName() string {
 	return "PanicRecover"
 }
 
-// PanicRecovery returns a [Middleware] which recovers from panics and print
+// PanicRecovery returns a [Middleware] which recovers from panics, sends 500 response and print
 // "recovered from panic: panic_value" to w. If w is nil, [DefaultLogWriter] will be used.
 // Panic recover middleware should be added as the last middleware to catch all panics.
 func PanicRecovery(w io.Writer) Middleware {
 	return (*panicRecovery)(log.New(DefaultLogWriter, "", log.LstdFlags))
 }
 
-func middlewareName(m Middleware) string {
-	if n, ok := m.(MiddlewareName); ok {
-		return n.MiddlewareName()
-	}
-	return reflect.TypeOf(m).String()
-}
+// func middlewareName(m Middleware) string {
+// 	if n, ok := m.(MiddlewareName); ok {
+// 		return n.MiddlewareName()
+// 	}
+// 	return reflect.TypeOf(m).String()
+// }
 
 // middlewareFunc wraps f and it's middleware name.
 // Used by MiddlewareFunc() function.
@@ -148,10 +140,19 @@ func (m middlewareFunc) MiddlewareName() string {
 	return m.name
 }
 
-// MiddlewareFunc is an adapter to allow the use of ordinary functions as [Middleware].
+// MiddlewareFuncWitName is an adapter to allow the use of ordinary functions as [Middleware].
 // Parameter name will be used as the name of Middleware.
-func MiddlewareFunc(f func(g *Gear, next func(*Gear)), name string) Middleware {
+func MiddlewareFuncWitName(f func(g *Gear, next func(*Gear)), name string) Middleware {
 	return middlewareFunc{name, f}
+}
+
+// MiddlewareFunc is an adapter to allow the use of ordinary functions as [Middleware].
+// If f is a function with the appropriate signature, MiddlewareFunc(f) is a Middleware that calls f.
+type MiddlewareFunc func(g *Gear, next func(*Gear))
+
+// Serve implements Serve() method of [Middleware].
+func (m MiddlewareFunc) Serve(g *Gear, next func(*Gear)) {
+	m(g, next)
 }
 
 // DecodeBody parses body and stores the result in the value pointed to by v.
@@ -183,20 +184,20 @@ func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	if handler == nil {
 		handler = http.DefaultServeMux
 	}
-	var g *Gear = &Gear{handler: handler, logger: log.New(DefaultLogWriter, "", log.LstdFlags)}
-	g.addMiddleware(middlewares)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if val := getGear(r); val != nil {
 			panic("already a Gear handler")
 		} else {
 			// No gear.
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, ctxKey, g)
-			r = r.WithContext(ctx)
+			var g *Gear = &Gear{
+				W:       w,
+				handler: handler,
+			}
+			g.addMiddleware(middlewares)
+			ctx := context.WithValue(r.Context(), ctxKey, g)
+			g.R = r.WithContext(ctx)
+			g.serve()
 		}
-		g.R = r
-		g.W = w
-		g.serve()
 	})
 }
 
@@ -233,4 +234,34 @@ func Server(server *http.Server, middlewares ...Middleware) *http.Server {
 // Server calls httptest.NewServer(Handler(handler)).
 func NewTestServer(handler http.Handler, middlewares ...Middleware) *httptest.Server {
 	return httptest.NewServer(Wrap(handler, middlewares...))
+}
+
+// PathInterceptor is a [Middleware] matches the prefix of request url path.
+type PathInterceptor struct {
+	prefix      string
+	prefixSlash string
+	handler     Middleware
+}
+
+// NewPathInterceptor returns a [PathInterceptor] that execute handler when the
+// request url path contains prefix.
+func NewPathInterceptor(prefix string, handler Middleware) *PathInterceptor {
+	prefix = pathlib.Clean(prefix)
+	pathSlash := prefix
+	if !strings.HasSuffix(pathSlash, "/") {
+		pathSlash += "/"
+	}
+	return &PathInterceptor{
+		prefix,
+		pathSlash,
+		handler,
+	}
+}
+
+// Serve implements Serve() method of [Middleware].
+func (m *PathInterceptor) Serve(g *Gear, next func(*Gear)) {
+	if g.R.URL.Path == m.prefix || strings.HasPrefix(g.R.URL.Path, m.prefixSlash) {
+		m.handler.Serve(g, next)
+	}
+	next(g)
 }
