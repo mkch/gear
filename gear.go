@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	pathlib "path"
-	"slices"
 	"strings"
 
 	"github.com/mkch/gear/impl"
@@ -22,53 +22,15 @@ const ctxKey contextKey = "gear"
 
 // Gear, the core of this framework.
 type Gear struct {
-	R           *http.Request       // R of this request.
-	W           http.ResponseWriter // W of this request.
-	handler     http.Handler        // The wrapped handler.
-	middlewares []Middleware        // The middlewares to handle the request.
-	curMW       int                 // The index of current middleware.
-	stopped     bool                // Whether g.Stop() has been called.
+	R       *http.Request       // R of this request.
+	W       http.ResponseWriter // W of this request.
+	stopped bool                // Whether g.Stop() has been called.
 }
 
 // Stop stops calling subsequent handling.
 // The processing of current middleware is unaffected.
 func (g *Gear) Stop() {
 	g.stopped = true
-}
-
-// addMiddleware adds middlewares to g.
-func (g *Gear) addMiddleware(middlewares []Middleware) {
-	g.middlewares = slices.Clone(middlewares)
-	if n := len(g.middlewares); n > 0 {
-		g.curMW = n - 1 // Serve from the last to the first.
-	}
-}
-
-// serve handles a http request.
-func (g *Gear) serve() {
-	if len(g.middlewares) == 0 {
-		g.handler.ServeHTTP(g.W, g.R)
-	} else {
-		g.serveMiddlewares()
-	}
-}
-
-// serveMiddlewares executes g.middlewares.
-func (g *Gear) serveMiddlewares() {
-	if g.stopped {
-		return
-	}
-	g.middlewares[g.curMW].Serve(g, func(g *Gear) {
-		if g.stopped {
-			return
-		}
-		g.curMW--
-		if g.curMW >= 0 {
-			g.serveMiddlewares()
-		} else {
-			g.handler.ServeHTTP(g.W, g.R)
-		}
-	})
 }
 
 // DefaultLogWriter is the writer where the default log output.
@@ -111,7 +73,7 @@ func (p *panicRecovery) MiddlewareName() string {
 
 // PanicRecovery returns a [Middleware] which recovers from panics, sends 500 response and print
 // "recovered from panic: panic_value" to w. If w is nil, [DefaultLogWriter] will be used.
-// Panic recover middleware should be added as the last middleware to catch all panics.
+// Panic recovery middleware should be added as the last middleware to catch all panics.
 func PanicRecovery(w io.Writer) Middleware {
 	return (*panicRecovery)(log.New(DefaultLogWriter, "", log.LstdFlags))
 }
@@ -175,29 +137,71 @@ func getGear(r *http.Request) any {
 	return r.Context().Value(ctxKey)
 }
 
+// mwExec is a executable bunch of Middlewares.
+type mwExec struct {
+	handler     http.Handler // Wrapped handler.
+	middlewares []Middleware // Middlewares to handle the request.
+	i           int          // Index of current middleware.
+}
+
+// newMwExec create a mwExec whose exec() method call a chain of middlewares in reverse order
+// and the first middleware calls handler.
+func newMwExec(middlewares []Middleware, handler http.Handler) *mwExec {
+	var m = &mwExec{handler: handler}
+	m.middlewares = middlewares
+	if n := len(m.middlewares); n > 0 {
+		m.i = n - 1 // Serve from the last to the first.
+	}
+	return m
+}
+
+// exec executes m.
+func (m *mwExec) exec(g *Gear) {
+	if len(m.middlewares) == 0 {
+		m.handler.ServeHTTP(g.W, g.R)
+	} else {
+		m.serveMiddlewares(g)
+	}
+}
+
+// serveMiddlewares executes m.middlewares.
+func (m *mwExec) serveMiddlewares(g *Gear) {
+	if g.stopped {
+		return
+	}
+	m.middlewares[m.i].Serve(g, func(g *Gear) {
+		if g.stopped {
+			return
+		}
+		m.i--
+		if m.i >= 0 { // Has next.
+			m.serveMiddlewares(g) // Call next.
+		} else {
+			m.handler.ServeHTTP(g.W, g.R) // Call wrapped handler.
+		}
+	})
+}
+
 // Wrap wraps handler and add Gear to it.
 // If handler is nil, http.DefaultServeMux will be used.
 // Parameter middlewares will be added to the result Handler.
 // Middlewares will be called in reversed order of addition,
-// so panic recover middleware should be added last to catch all panics.
+// so panic recovery middleware should be added last to catch all panics.
 func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	if handler == nil {
 		handler = http.DefaultServeMux
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var g *Gear
 		if val := getGear(r); val != nil {
-			panic("already a Gear handler")
+			g = val.(*Gear)
 		} else {
-			// No gear.
-			var g *Gear = &Gear{
-				W:       w,
-				handler: handler,
-			}
-			g.addMiddleware(middlewares)
+			// Add gear.
+			g = &Gear{W: w}
 			ctx := context.WithValue(r.Context(), ctxKey, g)
 			g.R = r.WithContext(ctx)
-			g.serve()
 		}
+		newMwExec(middlewares, handler).exec(g)
 	})
 }
 
@@ -205,7 +209,7 @@ func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 // If f is nil, http.DefaultServeMux.ServeHTTP will be used.
 // Parameter middlewares will be added to the result Handler.
 // Middlewares will be called in reversed order of addition ,
-// so panic recover middleware should be added last to catch all panics.
+// so panic recovery middleware should be added last to catch all panics.
 func WrapFunc(f func(w http.ResponseWriter, r *http.Request), middlewares ...Middleware) http.Handler {
 	if f == nil {
 		f = http.DefaultServeMux.ServeHTTP
@@ -225,8 +229,8 @@ func ListenAndServeTLS(addr, certFile, keyFile string, handler http.Handler, mid
 	return http.ListenAndServeTLS(addr, certFile, keyFile, Wrap(handler, middlewares...))
 }
 
-// Server wraps server.Handler using Wrap() and returns server itself.
-func Server(server *http.Server, middlewares ...Middleware) *http.Server {
+// WrapServer wraps server.Handler using Wrap() and returns server itself.
+func WrapServer(server *http.Server, middlewares ...Middleware) *http.Server {
 	server.Handler = Wrap(server.Handler, middlewares...)
 	return server
 }
@@ -264,4 +268,44 @@ func (m *PathInterceptor) Serve(g *Gear, next func(*Gear)) {
 		m.handler.Serve(g, next)
 	}
 	next(g)
+}
+
+// Group is suffix of a group of urls registered to http.ServeMux.
+type Group struct {
+	mux         *http.ServeMux
+	suffix      string
+	middlewares []Middleware
+}
+
+// NewGroup create a suffix of urls on mux. When any of these urls is
+// requested, middlewares of group handle the request before the url's.
+// If mux is nil, http.DefaultServeMux will be used.
+func NewGroup(suffix string, mux *http.ServeMux, middlewares ...Middleware) *Group {
+	if mux == nil {
+		mux = http.DefaultServeMux
+	}
+	return &Group{mux, suffix, middlewares}
+}
+
+// Handle registers middlewares for the given pattern. The group's middlewares handle the
+// request before pattern middlewares.
+func (group *Group) Handle(pattern string, middlewares ...Middleware) *Group {
+	if len(middlewares) == 0 {
+		return group
+	}
+	group.mux.Handle(path.Join(group.suffix, pattern),
+		WrapFunc(func(http.ResponseWriter, *http.Request) { /*nop*/ },
+			append(middlewares, group.middlewares...)...)) // group middlewares take precedence.
+	return group
+}
+
+// Group creates a new url suffix: path.Join(group.suffix, suffix).
+// When any of these urls is requested, middlewares of the new group
+// handle the request before group's before url's.
+func (group *Group) Group(suffix string, middlewares ...Middleware) *Group {
+	return &Group{
+		group.mux,
+		path.Join(group.suffix, suffix),
+		append(group.middlewares, middlewares...), // new group middlewares take precedence.
+	}
 }

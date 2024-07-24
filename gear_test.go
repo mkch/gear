@@ -172,3 +172,32 @@ func TestPathInterceptor(t *testing.T) {
 		t.Fatal(string(body))
 	}
 }
+
+func TestGroup(t *testing.T) {
+	var mux http.ServeMux
+
+	gear.NewGroup("/a/b", &mux, gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		fmt.Fprintf(g.W, "group1: %v\n", g.R.URL.Path)
+		next(g)
+	})).Handle("/1/2", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		fmt.Fprintf(g.W, "path: %v\n", g.R.URL.Path)
+		next(g)
+	})).Group("c", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		fmt.Fprintf(g.W, "group2: %v\n", g.R.URL.Path)
+		next(g)
+	})).Handle("/3", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		fmt.Fprintf(g.W, "path: %v\n", g.R.URL.Path)
+		next(g)
+	}))
+
+	server := gear.NewTestServer(&mux)
+	if _, vars := geartest.Curl(server.URL + "/a/b"); vars["response_code"] != float64(404) {
+		t.Fatal(vars["response_code"])
+	}
+	if body, _ := geartest.Curl(server.URL + "/a/b/1/2"); string(body) != "group1: /a/b/1/2\npath: /a/b/1/2\n" {
+		t.Fatal(string(body))
+	}
+	if body, _ := geartest.Curl(server.URL + "/a/b/c/3"); string(body) != "group2: /a/b/c/3\ngroup1: /a/b/c/3\npath: /a/b/c/3\n" {
+		t.Fatal(string(body))
+	}
+}

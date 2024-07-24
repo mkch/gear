@@ -45,13 +45,13 @@ func ExampleListenAndServeTLS() {
 	gear.ListenAndServeTLS(":8080", "certfile", "keyfile", nil)
 }
 
-func ExampleServer() {
+func ExampleWrapServer() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		var g = gear.G(r)
 		// Use g here.
 		_ = g
 	})
-	var server = gear.Server(&http.Server{})
+	var server = gear.WrapServer(&http.Server{})
 	server.ListenAndServe()
 }
 
@@ -91,4 +91,24 @@ func ExamplePathInterceptor() {
 	})
 	// "/admin" and all paths starts with "/admin/" will be intercepted by handler.
 	gear.ListenAndServe(":80", nil, gear.NewPathInterceptor("/admin", handler))
+}
+
+func adminAuth() bool { return false }
+
+func op1() {}
+
+func ExampleGroup() {
+	gear.NewGroup("/admin", nil, gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		// Handle admin authentication
+		if !adminAuth() {
+			http.Error(g.W, "", http.StatusUnauthorized)
+			return
+		}
+		// OK, go ahead.
+		next(g)
+	})).Handle("op1", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+		// The request path will be /admin/op1
+		op1() // Do the operation.
+		next(g)
+	}))
 }
