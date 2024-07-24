@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path"
 	"strings"
 
@@ -31,14 +31,30 @@ func (g *Gear) Stop() {
 	g.stopped = true
 }
 
-// DefaultLogWriter is the writer where the default log output.
-var DefaultLogWriter io.Writer = os.Stderr
+// Logger used by Gear.
+var Logger *slog.Logger = slog.Default()
 
 // DecodeBody parses body and stores the result in the value pointed to by v.
 // This method is a shortcut of impl.DecodeBody(g.R, nil, v).
 // See [impl.DecodeBody] for more details.
 func (g *Gear) DecodeBody(v any) error {
 	return encoding.DecodeBody(g.R, nil, v)
+}
+
+// WriteError writes error code and status text using http.Error().
+func (g *Gear) Error(code int) {
+	http.Error(g.W, http.StatusText(code), code)
+}
+
+// Write copies data from r to g.W.
+func (g *Gear) Write(r io.Reader) error {
+	_, err := io.Copy(g.W, r)
+	return err
+}
+
+// JSON writes JSON encoding ov v to g.W.
+func (g *Gear) JSON(v any) error {
+	return encoding.EncodeJSON(v, g.W)
 }
 
 // G retrives the Gear in r. It panics if no Gear.

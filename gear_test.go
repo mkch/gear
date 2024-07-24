@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -96,36 +97,22 @@ func (l *LoggerWithName) MiddlewareName() string {
 	return "MyLogger"
 }
 
-// func TestMiddlewareName(t *testing.T) {
-// 	var logger LoggerWithName
-// 	var mux http.ServeMux
-
-// 	var oldWriter = gear.DefaultLogWriter
-// 	var w = &bytes.Buffer{}
-// 	gear.DefaultLogWriter = w
-// 	defer func() { gear.DefaultLogWriter = oldWriter }()
-
-// 	var oldDebug = gear.LogDebug
-// 	gear.LogDebug = true
-// 	defer func() { gear.LogDebug = oldDebug }()
-
-// 	server := gear.NewTestServer(&mux, &logger)
-// 	defer server.Close()
-
-// 	if output := w.String(); !strings.HasSuffix(output, "Middleware added: MyLogger\n") {
-// 		t.Fatal(output)
-// 	}
-// }
-
 func TestPanicRecover(t *testing.T) {
 	var logger Logger
 	var mux http.ServeMux
 
-	var oldWriter = gear.DefaultLogWriter
 	var w = &bytes.Buffer{}
-	gear.DefaultLogWriter = w
-	defer func() { gear.DefaultLogWriter = oldWriter }()
-
+	var oldLogger = gear.Logger
+	defer func() { gear.Logger = oldLogger }()
+	gear.Logger = slog.New(slog.NewTextHandler(w,
+		&slog.HandlerOptions{
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == "time" {
+					return slog.Attr{}
+				}
+				return a
+			},
+		}))
 	server := gear.NewTestServer(&mux, gear.PanicRecovery(nil), &logger)
 	defer server.Close()
 
@@ -136,7 +123,7 @@ func TestPanicRecover(t *testing.T) {
 	geartest.Curl(server.URL + "/error")
 	geartest.Curl(server.URL)
 
-	if output := w.String(); !strings.HasSuffix(output, "recovered from panic: some error\n") {
+	if output := w.String(); !strings.HasSuffix(output, `level=ERROR msg="recovered from panic" value="some error"`+"\n") {
 		t.Fatal(output)
 	}
 

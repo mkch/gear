@@ -2,7 +2,6 @@ package gear
 
 import (
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -20,16 +19,16 @@ type MiddlewareName interface {
 }
 
 // panicRecovery is the default [Middleware] recovers from panics.
-// It sends 500 response and stops the gear.
-type panicRecovery log.Logger
+// It sends 500 response.
+type panicRecovery struct{}
 
 // Serve implements [Middleware].
-func (p *panicRecovery) Serve(g *Gear, next func(*Gear)) {
+func (p panicRecovery) Serve(g *Gear, next func(*Gear)) {
 	defer func() {
 		v := recover()
 		if v != nil {
-			(*log.Logger)(p).Printf("recovered from panic: %v", v)
-			http.Error(g.W, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			Logger.Error("recovered from panic", "value", v)
+			g.Error(http.StatusInternalServerError)
 			g.Stop()
 		}
 	}()
@@ -37,15 +36,15 @@ func (p *panicRecovery) Serve(g *Gear, next func(*Gear)) {
 }
 
 // MiddlewareName implements [MiddlewareName].
-func (p *panicRecovery) MiddlewareName() string {
+func (p panicRecovery) MiddlewareName() string {
 	return "PanicRecover"
 }
 
 // PanicRecovery returns a [Middleware] which recovers from panics, sends 500 response and print
-// "recovered from panic: panic_value" to w. If w is nil, [DefaultLogWriter] will be used.
+// "recovered from panic: panic_value" to Logger, send 500 responses.
 // Panic recovery middleware should be added as the last middleware to catch all panics.
 func PanicRecovery(w io.Writer) Middleware {
-	return (*panicRecovery)(log.New(DefaultLogWriter, "", log.LstdFlags))
+	return panicRecovery{}
 }
 
 // func middlewareName(m Middleware) string {
