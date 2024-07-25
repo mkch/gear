@@ -1,6 +1,7 @@
 package gear_test
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -111,4 +112,16 @@ func ExampleGroup() {
 		op1() // Do the operation.
 		next(g)
 	}))
+}
+
+func ExampleLogIfErr() {
+	var (
+		g *gear.Gear
+		v any
+	) // From somewhere else.
+	gear.LogIfErr(g.JSON(v))
+}
+
+func ExampleLogIfErrT() {
+	gear.LogIfErrT(fmt.Println("msg"))
 }

@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/mkch/gear/encoding"
 )
@@ -32,7 +34,79 @@ func (g *Gear) Stop() {
 }
 
 // Logger used by Gear.
+// Do not set a nil Logger, using log level to control output.
 var Logger *slog.Logger = slog.Default()
+
+// NoLog returns a Logger discards all messages and has a level of -99.
+// The following code disables message logging to a certain extent:
+//
+//	Logger = NoLog()
+func NoLog() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.Level(-99)}))
+}
+
+// logImpl is the helper function to log messag with Logger.
+// It must always be called directly by an exported logging method
+// or function, because it uses a fixed call depth to obtain the pc.
+func logImpl(level slog.Level, msg string, args ...any) {
+	if !Logger.Enabled(context.Background(), level) {
+		return
+	}
+	var pcs [1]uintptr
+	runtime.Callers(3, pcs[:]) // skip [wrapper, Callers, logImpl]
+	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
+	r.Add(args...)
+	Logger.Handler().Handle(context.Background(), r)
+}
+
+// Log logs at level with [Logger].
+func Log(level slog.Level, msg string, args ...any) {
+	logImpl(level, msg, args)
+}
+
+// LogD logs at [slog.LevelDebug] with [Logger].
+func LogD(msg string, args ...any) {
+	logImpl(slog.LevelDebug, msg, args...)
+}
+
+// LogI logs at [slog.LevelInfo] with [Logger].
+func LogI(msg string, args ...any) {
+	logImpl(slog.LevelInfo, msg, args...)
+}
+
+// LogW logs at [slog.LevelWarn] with [Logger].
+func LogW(msg string, args ...any) {
+	logImpl(slog.LevelWarn, msg, args...)
+}
+
+// LogE logs at [slog.LevelError] with [Logger].
+func LogE(msg string, args ...any) {
+	logImpl(slog.LevelError, msg, args...)
+}
+
+// LogIfErr logs err at [slog.LevelError] with [Logger] if err != nil.
+// The log message has attribute {"err":err}.
+// This function is convenient to log non-nil return value.
+// For example:
+//
+//	LogIfErr(g.JSON(v))
+func LogIfErr(err error) {
+	if err != nil {
+		logImpl(slog.LevelError, "", "err", err)
+	}
+}
+
+// LogIfErrT logs ret and err at [slog.LevelError] with [Logger] if err != nil.
+// The log message has attribute {"ret": ret, "err":err}.
+// This function is convenient to log non-nil return value.
+// For example:
+//
+//	LogIfErrT(fmt.Println("msg"))
+func LogIfErrT[T any](ret T, err error) {
+	if err != nil {
+		logImpl(slog.LevelError, "", "ret", ret, "err", err)
+	}
+}
 
 // DecodeBody parses body and stores the result in the value pointed to by v.
 // This method is a shortcut of impl.DecodeBody(g.R, nil, v).
