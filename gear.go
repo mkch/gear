@@ -252,8 +252,8 @@ func NewGroup(prefix string, mux *http.ServeMux, middlewares ...Middleware) *Gro
 // emptyHttpHandler is a http.Handler does nothing.
 var emptyHttpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { /*nop*/ })
 
-// Handle registers handler for the given pattern. The handler and middlewares are wrapped(see [Wrap])
-// before registering.
+// Handle registers handler for a pattern which is the group prefix joined ([path.Join]) pattern parameter.
+// The handler and middlewares are wrapped(see [Wrap]) before registering.
 // Group's middlewares take precedence over the wrapped handler here.
 // If handler is nil, an empty handler will be used.
 func (group *Group) Handle(pattern string, handler http.Handler, middlewares ...Middleware) *Group {
@@ -266,13 +266,13 @@ func (group *Group) Handle(pattern string, handler http.Handler, middlewares ...
 	return group
 }
 
-// Group creates a new URL prefix: path.Join(group.prefix, prefix).
-// When any URL has the prefix is requested, middlewares of the new group
-// handle the request before group's, before URL handler.
-func (group *Group) Group(prefix string, middlewares ...Middleware) *Group {
+// Group creates a new URL prefix: path.Join(parent.prefix, prefix).
+// When any URL has the prefix is requested, middlewares of parent group
+// handle the request before the new group.
+func (parent *Group) Group(prefix string, middlewares ...Middleware) *Group {
 	return &Group{
-		group.mux,
-		path.Join(group.prefix, prefix),
-		append(group.middlewares, middlewares...), // new group middlewares take precedence.
+		parent.mux,
+		path.Join(parent.prefix, prefix),
+		append(middlewares, parent.middlewares...), // parent group takes precedence.
 	}
 }

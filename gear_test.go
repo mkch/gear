@@ -183,7 +183,7 @@ func TestGroup(t *testing.T) {
 	if body, _ := geartest.Curl(server.URL + "/a/b/1/2"); string(body) != "group1: /a/b/1/2\npath: /a/b/1/2\n" {
 		t.Fatal(string(body))
 	}
-	if body, _ := geartest.Curl(server.URL + "/a/b/c/3"); string(body) != "group2: /a/b/c/3\ngroup1: /a/b/c/3\npath: /a/b/c/3\n" {
+	if body, _ := geartest.Curl(server.URL + "/a/b/c/3"); string(body) != "group1: /a/b/c/3\ngroup2: /a/b/c/3\npath: /a/b/c/3\n" {
 		t.Fatal(string(body))
 	}
 }
