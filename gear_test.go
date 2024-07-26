@@ -2,6 +2,7 @@ package gear_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -238,9 +239,26 @@ func TestDecodeForm(t *testing.T) {
 	}
 }
 
+type Name struct {
+	First string
+	Last  string
+}
+
+func (n *Name) UnmarshalFormValue(values []string) error {
+	if len(values) == 0 {
+		return errors.New("empty slice")
+	}
+	parts := strings.Split(values[0], " ")
+	if len(parts) != 2 {
+		return errors.New("invalid name format")
+	}
+	n.First, n.Last = parts[0], parts[1]
+	return nil
+}
+
 func TestDecodeFormMultipart(t *testing.T) {
 	type Person struct {
-		Name    string   `form:"name"`
+		Name    *Name    `form:"name"`
 		Age     int16    `form:"age"`
 		Hobbies []string `form:"hobby"`
 	}
@@ -257,13 +275,13 @@ func TestDecodeFormMultipart(t *testing.T) {
 	server := gear.NewTestServer(&mux)
 	defer server.Close()
 
-	_, vars := geartest.Curl(server.URL+"/post?hobby=football", "-F", "name=John", "-F", "age=30", "-F", "hobby=basketball")
+	_, vars := geartest.Curl(server.URL+"/post?hobby=football", "-F", "name=John Smith", "-F", "age=30", "-F", "hobby=basketball")
 	if status := int(vars["response_code"].(float64)); status != 200 {
 		t.Fatal(status)
 	}
 	slices.Sort(person.Hobbies)
 	if !reflect.DeepEqual(person, Person{
-		Name: "John", Age: 30, Hobbies: []string{"basketball", "football"},
+		Name: &Name{"John", "Smith"}, Age: 30, Hobbies: []string{"basketball", "football"},
 	}) {
 		t.Fatal(person)
 	}

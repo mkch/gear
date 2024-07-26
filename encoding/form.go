@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -17,7 +18,7 @@ import (
 // if v is nil or not a pointer, DecodeForm returns an [InvalidDecodeError].
 //
 // The parameter v can be one of the following types.
-//   - *map[string][]string : *v is values itself.
+//   - *map[string][]string : *v is a copy of values.
 //   - *map[string]string   : *v has the same content of values but each pair only has the firs value.
 //   - *map[string]any      : *v has the same content as above but with any value type.
 //
@@ -26,16 +27,24 @@ import (
 //   - integers(int8, int18, uint, uintptr etc).
 //   - floats(float32, float64).
 //   - Pointers or slices of the the above.
+//   - Type implements [FormValueUnmarshaler].
 //
 // A Value is converted to the type of the field, if conversion failed, an [DecodeFieldError] will be returned.
 // Slices and pointers are allocated as necessary. A Slice field contains all the values of the key,
-// non-slice field contains the first value only.
+// non-slice field contains the first value only. A FormValueUnmarshaler decodes []string into itself.
 //
 // The follow field tags can be used:
 //   - `form:"key_name"` : key_name is the name of the key.
 //   - `form:"-"`        : this field is ignored.
 type FormDecoder interface {
 	DecodeForm(values url.Values, v any) error
+}
+
+// FormValueUnmarshaler is the interface implemented by types that can unmarshal form []string.
+// The input is the value of url.Values. UnmarshalFormValue must copy the slice if it wishes
+// to retain the data after returning.
+type FormValueUnmarshaler interface {
+	UnmarshalFormValue([]string) error
 }
 
 // FormDecoderFunc is an adapter to allow the use of ordinary functions as [FormDecoder].
@@ -127,7 +136,10 @@ func decodeForm(values url.Values, v any) error {
 
 	// Special case: simple conversions.
 	if p, ok := v.(*map[string][]string); ok {
-		*p = values
+		if *p == nil {
+			*p = make(map[string][]string)
+		}
+		maps.Copy(*p, values)
 		return nil
 	}
 	if p, ok := v.(*map[string]string); ok {
@@ -177,11 +189,25 @@ func decodeForm(values url.Values, v any) error {
 	return nil
 }
 
+var formUnmarshalerType = reflect.TypeOf((*FormValueUnmarshaler)(nil)).Elem()
+
 // parseFormValue parses values into dest. Return non-nil if error occurs.
 // If err is not nil, the Name field is not set(unknown in this function).
 func parseFormValue(values []string, dest reflect.Value) *DecodeFieldError {
 	var err error
 	t := dest.Type()
+	if t.Implements(formUnmarshalerType) {
+		if t.Kind() == reflect.Pointer && dest.IsNil() {
+			dest.Set(reflect.New(t.Elem()))
+		}
+		unmarshaler := dest.Interface().(FormValueUnmarshaler)
+		err = unmarshaler.UnmarshalFormValue(values)
+		if err != nil {
+			return &DecodeFieldError{Type: t, Value: fmt.Sprintf("%v", values), Err: err}
+		}
+		return nil
+	}
+
 	var value string // The first value in values.
 	if len(values) > 0 {
 		value = values[0]
@@ -197,8 +223,8 @@ func parseFormValue(values []string, dest reflect.Value) *DecodeFieldError {
 	case reflect.Slice:
 		s := dest
 		for i := range values {
-			var p = reflect.New(t.Elem())
-			if err := parseFormValue(values[i:i+1], p.Elem()); err != nil {
+			var p = reflect.New(t.Elem())                                   // alloc
+			if err := parseFormValue(values[i:i+1], p.Elem()); err != nil { // parse recursively
 				return err
 			} else {
 				s = reflect.Append(s, p.Elem())
