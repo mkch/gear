@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -92,6 +93,16 @@ func (e *DecodeFieldError) Error() string {
 		ret += ": " + e.Err.Error()
 	}
 	return ret
+}
+
+// DecodeForm decodes r.Form using decoder and stores the result in the value pointed by v.
+// If decoder is nil, [DefaultFormDecoder] will be used.
+// Note: r.ParseForm or ParseMultipartForm should be call to populate r.Form.
+func DecodeForm(r *http.Request, decoder FormDecoder, v any) (err error) {
+	if decoder == nil {
+		decoder = DefaultFormDecoder
+	}
+	return decoder.DecodeForm(r.Form, v)
 }
 
 // DefaultFormDecoder is the default implementation of [FormDecoder].

@@ -109,10 +109,38 @@ func LogIfErrT[T any](ret T, err error) {
 }
 
 // DecodeBody parses body and stores the result in the value pointed to by v.
-// This method is a shortcut of impl.DecodeBody(g.R, nil, v).
-// See [impl.DecodeBody] for more details.
+// This method is a shortcut of encoding.DecodeBody(g.R, nil, v).
+// See [encoding.DecodeBody] for more details.
 func (g *Gear) DecodeBody(v any) error {
 	return encoding.DecodeBody(g.R, nil, v)
+}
+
+// MustDecodeBody calls [Gear.DecodeBody]. If DecodeBody returns an error, MustDecodeBody returns it but also
+// writes a http.StatusBadRequest response and stops the middleware processing.
+func (g *Gear) MustDecodeBody(v any) (err error) {
+	if err = g.DecodeBody(v); err != nil {
+		g.Error(http.StatusBadRequest)
+		g.Stop()
+	}
+	return
+}
+
+// DecodeFrom calls g.R.ParseForm(), decodes g.R.Form and stores the result in the value pointed by v.
+// See [encoding.DecodeForm] for more details.
+// Call ParseMultipartForm() on the request to include values in multi-part form.
+func (g *Gear) DecodeForm(v any) error {
+	LogIfErr(g.R.ParseForm())
+	return encoding.DecodeForm(g.R, nil, v)
+}
+
+// MustDecodeForm calls [Gear.DecodeForm]. If DecodeForm returns an error, MustDecodeForm returns it but also
+// writes a http.StatusBadRequest response and stops the middleware processing.
+func (g *Gear) MustDecodeForm(v any) (err error) {
+	if err = g.DecodeForm(v); err != nil {
+		g.Error(http.StatusBadRequest)
+		g.Stop()
+	}
+	return
 }
 
 // WriteError writes error code and status text using http.Error().
@@ -197,7 +225,7 @@ func WrapServer(server *http.Server, middlewares ...Middleware) *http.Server {
 	return server
 }
 
-// Server calls httptest.NewServer(Handler(handler)).
+// Server calls httptest.NewServer with Wrap(handler, middlewares)).
 func NewTestServer(handler http.Handler, middlewares ...Middleware) *httptest.Server {
 	return httptest.NewServer(Wrap(handler, middlewares...))
 }

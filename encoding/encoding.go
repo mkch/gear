@@ -37,7 +37,7 @@ func (err UnknownContentType) Error() string {
 	return fmt.Sprintf("known Content-Type %v", string(err))
 }
 
-// DecodeBody decodes r.Body using decoder and store the result in the value pointed to by v.
+// DecodeBody decodes r.Body using decoder and stores the result in the value pointed to by v.
 // If decoder is nil, Content-Type header of r wii be used to select an available decoder.
 // If there is no decoder available for that type, [UnknownContentType] error is returned.
 // See [BodyDecoder] for details.

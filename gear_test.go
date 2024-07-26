@@ -6,6 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -203,5 +205,66 @@ func TestGStop(t *testing.T) {
 
 	if h1Run {
 		t.Fatal("h1 should not run")
+	}
+}
+
+func TestDecodeForm(t *testing.T) {
+	type Person struct {
+		Name    string   `form:"name"`
+		Age     int16    `form:"age"`
+		Hobbies []string `form:"hobby"`
+	}
+
+	var person Person
+
+	var mux http.ServeMux
+
+	mux.HandleFunc("/post", func(w http.ResponseWriter, r *http.Request) {
+		g := gear.G(r)
+		gear.LogIfErr(g.MustDecodeForm(&person))
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+
+	_, vars := geartest.Curl(server.URL+"/post?hobby=football", "-d", "name=John&age=30&hobby=basketball")
+	if status := int(vars["response_code"].(float64)); status != 200 {
+		t.Fatal(status)
+	}
+	slices.Sort(person.Hobbies)
+	if !reflect.DeepEqual(person, Person{
+		Name: "John", Age: 30, Hobbies: []string{"basketball", "football"},
+	}) {
+		t.Fatal(person)
+	}
+}
+
+func TestDecodeFormMultipart(t *testing.T) {
+	type Person struct {
+		Name    string   `form:"name"`
+		Age     int16    `form:"age"`
+		Hobbies []string `form:"hobby"`
+	}
+
+	var person Person
+
+	var mux http.ServeMux
+
+	mux.HandleFunc("/post", func(w http.ResponseWriter, r *http.Request) {
+		g := gear.G(r)
+		gear.LogIfErr(r.ParseMultipartForm(1024))
+		gear.LogIfErr(g.MustDecodeForm(&person))
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+
+	_, vars := geartest.Curl(server.URL+"/post?hobby=football", "-F", "name=John", "-F", "age=30", "-F", "hobby=basketball")
+	if status := int(vars["response_code"].(float64)); status != 200 {
+		t.Fatal(status)
+	}
+	slices.Sort(person.Hobbies)
+	if !reflect.DeepEqual(person, Person{
+		Name: "John", Age: 30, Hobbies: []string{"basketball", "football"},
+	}) {
+		t.Fatal(person)
 	}
 }
