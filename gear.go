@@ -27,8 +27,8 @@ type Gear struct {
 	stopped bool                // Whether g.Stop() has been called.
 }
 
-// Stop stops calling subsequent handling.
-// The processing of current middleware is unaffected.
+// Stop stops further middleware processing.
+// Current middleware is unaffected.
 func (g *Gear) Stop() {
 	g.stopped = true
 }
@@ -127,7 +127,7 @@ func (g *Gear) MustDecodeBody(v any) (err error) {
 
 // DecodeFrom calls g.R.ParseForm(), decodes g.R.Form and stores the result in the value pointed by v.
 // See [encoding.DecodeForm] for more details.
-// Call ParseMultipartForm() on the request to include values in multi-part form.
+// Call ParseMultipartForm() of the request to include values in multi-part form.
 func (g *Gear) DecodeForm(v any) error {
 	LogIfErr(g.R.ParseForm())
 	return encoding.DecodeForm(g.R, nil, v)

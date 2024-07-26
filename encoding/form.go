@@ -10,27 +10,29 @@ import (
 	"github.com/mkch/gg"
 )
 
-// FormDecoder decode form values, such as [http.Request.Form], [http.Request.PostForm].
+// FormDecoder decodes form values, such as [http.Request.Form], [http.Request.PostForm].
 //
 // DecodeForm method works like [json.Unmarshal].
-// It parse [url.Values] and stores the result in the value pointed by v.
+// It parses [url.Values] and stores the result in the value pointed by v.
 // if v is nil or not a pointer, DecodeForm returns an [InvalidDecodeError].
 //
-// The parameter v can be of type
-//   - *map[string][]string : v is values itself.
-//   - *map[string]string   : v has the same content of values but each pair only has the firs value.
-//   - *map[string]any      : v has the same content as above but with any value type.
+// The parameter v can be one of the following types.
+//   - *map[string][]string : *v is values itself.
+//   - *map[string]string   : *v has the same content of values but each pair only has the firs value.
+//   - *map[string]any      : *v has the same content as above but with any value type.
 //
-// or any *struct type. The struct field can be of type
+// or any *struct type. The struct field can be one of the following types.
 //   - string
 //   - integers(int8, int18, uint, uintptr etc).
 //   - floats(float32, float64).
-//   - Pointers or slices.
+//   - Pointers or slices of the the above.
 //
-// Slices and pointers are allocated as necessary.
+// A Value is converted to the type of the field, if conversion failed, an [DecodeFieldError] will be returned.
+// Slices and pointers are allocated as necessary. A Slice field contains all the values of the key,
+// non-slice field contains the first value only.
 //
 // The follow field tags can be used:
-//   - `form:"key_name"` : key_name is the key name in values.
+//   - `form:"key_name"` : key_name is the name of the key.
 //   - `form:"-"`        : this field is ignored.
 type FormDecoder interface {
 	DecodeForm(values url.Values, v any) error
