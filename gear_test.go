@@ -187,3 +187,21 @@ func TestGroup(t *testing.T) {
 		t.Fatal(string(body))
 	}
 }
+
+func TestGStop(t *testing.T) {
+	var h1Run bool
+	h1 := gear.WrapFunc(func(w http.ResponseWriter, r *http.Request) {
+		h1Run = true
+	})
+
+	h2 := gear.WrapFunc(func(w http.ResponseWriter, r *http.Request) {
+		gear.G(r).Stop()
+		h1.ServeHTTP(w, r)
+	})
+
+	h2.ServeHTTP(nil, gg.Must(http.NewRequest(http.MethodGet, "/", nil)))
+
+	if h1Run {
+		t.Fatal("h1 should not run")
+	}
+}
