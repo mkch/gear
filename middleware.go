@@ -106,6 +106,9 @@ func newMwExec(middlewares []Middleware, handler http.Handler) *mwExec {
 
 // exec executes m.
 func (m *mwExec) exec(g *Gear) {
+	if g.stopped {
+		return
+	}
 	if len(m.middlewares) == 0 {
 		m.handler.ServeHTTP(g.W, g.R)
 	} else {
@@ -115,9 +118,6 @@ func (m *mwExec) exec(g *Gear) {
 
 // serveMiddlewares executes m.middlewares.
 func (m *mwExec) serveMiddlewares(g *Gear) {
-	if g.stopped {
-		return
-	}
 	m.middlewares[m.i].Serve(g, func(g *Gear) {
 		if g.stopped {
 			return
