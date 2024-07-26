@@ -107,10 +107,9 @@ func ExampleGroup() {
 		}
 		// OK, go ahead.
 		next(g)
-	})).Handle("op1", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
+	})).Handle("op1", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The request path will be /admin/op1
 		op1() // Do the operation.
-		next(g)
 	}))
 }
 

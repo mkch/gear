@@ -11,6 +11,7 @@ import (
 
 	"github.com/mkch/gear"
 	"github.com/mkch/gear/impl/geartest"
+	"github.com/mkch/gg"
 )
 
 func TestJSONBodyDecoder(t *testing.T) {
@@ -166,15 +167,13 @@ func TestGroup(t *testing.T) {
 	gear.NewGroup("/a/b", &mux, gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
 		fmt.Fprintf(g.W, "group1: %v\n", g.R.URL.Path)
 		next(g)
-	})).Handle("/1/2", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
-		fmt.Fprintf(g.W, "path: %v\n", g.R.URL.Path)
-		next(g)
+	})).Handle("/1/2", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "path: %v\n", r.URL.Path)
 	})).Group("c", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
 		fmt.Fprintf(g.W, "group2: %v\n", g.R.URL.Path)
 		next(g)
-	})).Handle("/3", gear.MiddlewareFunc(func(g *gear.Gear, next func(*gear.Gear)) {
-		fmt.Fprintf(g.W, "path: %v\n", g.R.URL.Path)
-		next(g)
+	})).Handle("/3", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "path: %v\n", r.URL.Path)
 	}))
 
 	server := gear.NewTestServer(&mux)

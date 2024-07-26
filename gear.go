@@ -232,42 +232,47 @@ func (m *PathInterceptor) Serve(g *Gear, next func(*Gear)) {
 	next(g)
 }
 
-// Group is suffix of a group of urls registered to http.ServeMux.
+// Group is prefix of a group of urls registered to http.ServeMux.
 type Group struct {
 	mux         *http.ServeMux
-	suffix      string
+	prefix      string
 	middlewares []Middleware
 }
 
-// NewGroup create a suffix of urls on mux. When any of these urls is
-// requested, middlewares of group handle the request before the url's.
+// NewGroup create a prefix of URLs on mux. When any URL has the prefix is requested,
+// middlewares of group handle the request before URL handler.
 // If mux is nil, http.DefaultServeMux will be used.
-func NewGroup(suffix string, mux *http.ServeMux, middlewares ...Middleware) *Group {
+func NewGroup(prefix string, mux *http.ServeMux, middlewares ...Middleware) *Group {
 	if mux == nil {
 		mux = http.DefaultServeMux
 	}
-	return &Group{mux, suffix, middlewares}
+	return &Group{mux, prefix, middlewares}
 }
 
-// Handle registers middlewares for the given pattern. The group's middlewares handle the
-// request before pattern middlewares.
-func (group *Group) Handle(pattern string, middlewares ...Middleware) *Group {
-	if len(middlewares) == 0 {
-		return group
+// emptyHttpHandler is a http.Handler does nothing.
+var emptyHttpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { /*nop*/ })
+
+// Handle registers handler for the given pattern. The handler and middlewares are wrapped(see [Wrap])
+// before registering.
+// Group's middlewares take precedence over the wrapped handler here.
+// If handler is nil, an empty handler will be used.
+func (group *Group) Handle(pattern string, handler http.Handler, middlewares ...Middleware) *Group {
+	if handler == nil {
+		handler = emptyHttpHandler
 	}
-	group.mux.Handle(path.Join(group.suffix, pattern),
-		WrapFunc(func(http.ResponseWriter, *http.Request) { /*nop*/ },
+	group.mux.Handle(path.Join(group.prefix, pattern),
+		Wrap(handler,
 			append(middlewares, group.middlewares...)...)) // group middlewares take precedence.
 	return group
 }
 
-// Group creates a new url suffix: path.Join(group.suffix, suffix).
-// When any of these urls is requested, middlewares of the new group
-// handle the request before group's before url's.
-func (group *Group) Group(suffix string, middlewares ...Middleware) *Group {
+// Group creates a new URL prefix: path.Join(group.prefix, prefix).
+// When any URL has the prefix is requested, middlewares of the new group
+// handle the request before group's, before URL handler.
+func (group *Group) Group(prefix string, middlewares ...Middleware) *Group {
 	return &Group{
 		group.mux,
-		path.Join(group.suffix, suffix),
+		path.Join(group.prefix, prefix),
 		append(group.middlewares, middlewares...), // new group middlewares take precedence.
 	}
 }
