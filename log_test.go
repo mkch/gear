@@ -12,9 +12,9 @@ import (
 )
 
 func withLogger(logger *slog.Logger, f func()) {
-	old := gear.Logger
-	gear.Logger = logger
-	defer func() { gear.Logger = old }()
+	old := gear.RawLogger
+	gear.RawLogger = logger
+	defer func() { gear.RawLogger = old }()
 	f()
 }
 

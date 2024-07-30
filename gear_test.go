@@ -106,9 +106,9 @@ func TestPanicRecover(t *testing.T) {
 	var mux http.ServeMux
 
 	var w = &bytes.Buffer{}
-	var oldLogger = gear.Logger
-	defer func() { gear.Logger = oldLogger }()
-	gear.Logger = slog.New(slog.NewTextHandler(w,
+	var oldLogger = gear.RawLogger
+	defer func() { gear.RawLogger = oldLogger }()
+	gear.RawLogger = slog.New(slog.NewTextHandler(w,
 		&slog.HandlerOptions{
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 				if a.Key == "time" {

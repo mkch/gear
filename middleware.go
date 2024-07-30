@@ -27,7 +27,7 @@ func (p panicRecovery) Serve(g *Gear, next func(*Gear)) {
 	defer func() {
 		v := recover()
 		if v != nil {
-			Logger.Error("recovered from panic", "value", v)
+			RawLogger.Error("recovered from panic", "value", v)
 			g.Error(http.StatusInternalServerError)
 			g.Stop()
 		}

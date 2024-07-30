@@ -33,14 +33,14 @@ func (g *Gear) Stop() {
 	g.stopped = true
 }
 
-// Logger used by Gear.
+// RawLogger used by Gear.
 // Do not set a nil Logger, using log level to control output.
-var Logger *slog.Logger = slog.Default()
+var RawLogger *slog.Logger = slog.Default()
 
 // NoLog returns a Logger discards all messages and has a level of -99.
 // The following code disables message logging to a certain extent:
 //
-//	Logger = NoLog()
+//	RawLogger = NoLog()
 func NoLog() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.Level(-99)}))
 }
@@ -49,42 +49,42 @@ func NoLog() *slog.Logger {
 // It must always be called directly by an exported logging method
 // or function, because it uses a fixed call depth to obtain the pc.
 func logImpl(level slog.Level, msg string, args ...any) {
-	if !Logger.Enabled(context.Background(), level) {
+	if !RawLogger.Enabled(context.Background(), level) {
 		return
 	}
 	var pcs [1]uintptr
 	runtime.Callers(3, pcs[:]) // skip [wrapper, Callers, logImpl]
 	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
 	r.Add(args...)
-	Logger.Handler().Handle(context.Background(), r)
+	RawLogger.Handler().Handle(context.Background(), r)
 }
 
-// Log logs at level with [Logger].
+// Log logs at level with [RawLogger].
 func Log(level slog.Level, msg string, args ...any) {
 	logImpl(level, msg, args)
 }
 
-// LogD logs at [slog.LevelDebug] with [Logger].
+// LogD logs at [slog.LevelDebug] with [RawLogger].
 func LogD(msg string, args ...any) {
 	logImpl(slog.LevelDebug, msg, args...)
 }
 
-// LogI logs at [slog.LevelInfo] with [Logger].
+// LogI logs at [slog.LevelInfo] with [RawLogger].
 func LogI(msg string, args ...any) {
 	logImpl(slog.LevelInfo, msg, args...)
 }
 
-// LogW logs at [slog.LevelWarn] with [Logger].
+// LogW logs at [slog.LevelWarn] with [RawLogger].
 func LogW(msg string, args ...any) {
 	logImpl(slog.LevelWarn, msg, args...)
 }
 
-// LogE logs at [slog.LevelError] with [Logger].
+// LogE logs at [slog.LevelError] with [RawLogger].
 func LogE(msg string, args ...any) {
 	logImpl(slog.LevelError, msg, args...)
 }
 
-// LogIfErr logs err at [slog.LevelError] with [Logger] if err != nil.
+// LogIfErr logs err at [slog.LevelError] with [RawLogger] if err != nil.
 // The log message has attribute {"err":err}.
 // This function is convenient to log non-nil return value.
 // For example:
@@ -96,7 +96,7 @@ func LogIfErr(err error) {
 	}
 }
 
-// LogIfErrT logs ret and err at [slog.LevelError] with [Logger] if err != nil.
+// LogIfErrT logs ret and err at [slog.LevelError] with [RawLogger] if err != nil.
 // The log message has attribute {"ret": ret, "err":err}.
 // This function is convenient to log non-nil return value.
 // For example:
