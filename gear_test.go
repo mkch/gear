@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -73,15 +74,15 @@ func TestMiddleWare(t *testing.T) {
 	}
 }
 
-type Logger []string
+type CustomLogger []string
 
-func (l *Logger) Serve(g *gear.Gear, next func(*gear.Gear)) {
+func (l *CustomLogger) Serve(g *gear.Gear, next func(*gear.Gear)) {
 	*l = append(*l, fmt.Sprintf("Method: %v Path: %v", g.R.Method, g.R.URL.Path))
 	next(g)
 }
 
-func TestLogger(t *testing.T) {
-	var logger Logger
+func TestCustomLogger(t *testing.T) {
+	var logger CustomLogger
 	var mux http.ServeMux
 	server := gear.NewTestServer(&mux, &logger)
 	defer server.Close()
@@ -94,7 +95,7 @@ func TestLogger(t *testing.T) {
 }
 
 type LoggerWithName struct {
-	Logger
+	CustomLogger
 }
 
 func (l *LoggerWithName) MiddlewareName() string {
@@ -102,7 +103,7 @@ func (l *LoggerWithName) MiddlewareName() string {
 }
 
 func TestPanicRecover(t *testing.T) {
-	var logger Logger
+	var logger CustomLogger
 	var mux http.ServeMux
 
 	var w = &bytes.Buffer{}
@@ -285,4 +286,34 @@ func TestDecodeFormMultipart(t *testing.T) {
 	}) {
 		t.Fatal(person)
 	}
+}
+
+func TestLogger(t *testing.T) {
+	var buf bytes.Buffer
+	withLogger(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				a = slog.Attr{}
+			}
+			return a
+		},
+	})), func() {
+		var mux http.ServeMux
+		server := gear.NewTestServer(&mux, gear.Logger())
+		defer server.Close()
+		var reqUrl = gg.Must(url.Parse(server.URL))
+		var host = reqUrl.Host
+		reqUrl.Path = "/a/b/c"
+		reqUrl.RawQuery = "x=y"
+		if resp, err := http.Get(reqUrl.String()); err != nil {
+			t.Fatal(err)
+		} else {
+			defer resp.Body.Close()
+			expected := fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL="/a/b/c?x=y"`+"\n", host)
+			if line := buf.String(); line != expected {
+				t.Fatal(line)
+			}
+		}
+	})
+
 }

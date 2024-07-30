@@ -130,3 +130,18 @@ func (m *mwExec) serveMiddlewares(g *Gear) {
 		}
 	})
 }
+
+// Logger returns a [Middleware] to log HTTP access log.
+//
+// Log Attr:
+//
+//	"msg": "HTTP"
+//	"method": request.Method
+//	"host": request.Host
+//	"URL": request.URL
+func Logger() Middleware {
+	return MiddlewareFuncWitName(func(g *Gear, next func(*Gear)) {
+		RawLogger.Info("HTTP", "method", g.R.Method, "host", g.R.Host, "URL", g.R.URL)
+		next(g)
+	}, "Logger")
+}
