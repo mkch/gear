@@ -118,7 +118,7 @@ func TestPanicRecover(t *testing.T) {
 				return a
 			},
 		}))
-	server := gear.NewTestServer(&mux, gear.PanicRecovery(nil), &logger)
+	server := gear.NewTestServer(&mux, gear.PanicRecovery(), &logger)
 	defer server.Close()
 
 	mux.HandleFunc("/error", func(w http.ResponseWriter, r *http.Request) {

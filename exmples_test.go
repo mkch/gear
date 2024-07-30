@@ -78,7 +78,7 @@ func ExampleMiddlewareFunc() {
 }
 
 func ExamplePanicRecovery() {
-	gear.ListenAndServe(":80", nil, gear.PanicRecovery(nil))
+	gear.ListenAndServe(":80", nil, gear.PanicRecovery())
 }
 
 func ExamplePathInterceptor() {

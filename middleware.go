@@ -1,7 +1,6 @@
 package gear
 
 import (
-	"io"
 	"net/http"
 )
 
@@ -40,10 +39,10 @@ func (p panicRecovery) MiddlewareName() string {
 	return "PanicRecover"
 }
 
-// PanicRecovery returns a [Middleware] which recovers from panics, sends 500 response and print
-// "recovered from panic: panic_value" to Logger, send 500 responses.
+// PanicRecovery returns a [Middleware] which recovers from panics,
+// logs "recovered from panic: panic_value" and sends 500 responses.
 // Panic recovery middleware should be added as the last middleware to catch all panics.
-func PanicRecovery(w io.Writer) Middleware {
+func PanicRecovery() Middleware {
 	return panicRecovery{}
 }
 
