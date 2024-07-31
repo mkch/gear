@@ -144,6 +144,11 @@ func (g *Gear) DecodeForm(v any) error {
 	return encoding.DecodeForm(g.R, nil, v)
 }
 
+// DecodeHeader decodes g.R.Header and stores the result in the value pointed by v.
+func (g *Gear) DecodeHeader(v any) error {
+	return encoding.DecodeHeader(g.R, encoding.DefaultHeaderDecoder, v)
+}
+
 // MustDecodeForm calls [Gear.DecodeForm]. If DecodeForm returns an error, MustDecodeForm returns it but also
 // writes a http.StatusBadRequest response and stops the middleware processing.
 func (g *Gear) MustDecodeForm(v any) (err error) {

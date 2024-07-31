@@ -12,8 +12,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mkch/gear"
+	"github.com/mkch/gear/encoding"
 	"github.com/mkch/gear/impl/geartest"
 	"github.com/mkch/gg"
 )
@@ -212,9 +214,9 @@ func TestGStop(t *testing.T) {
 
 func TestDecodeForm(t *testing.T) {
 	type Person struct {
-		Name    string   `form:"name"`
-		Age     int16    `form:"age"`
-		Hobbies []string `form:"hobby"`
+		Name    string   `map:"name"`
+		Age     int16    `map:"age"`
+		Hobbies []string `map:"hobby"`
 	}
 
 	var person Person
@@ -245,7 +247,7 @@ type Name struct {
 	Last  string
 }
 
-func (n *Name) UnmarshalFormValue(values []string) error {
+func (n *Name) UnmarshalMapValue(values []string) error {
 	if len(values) == 0 {
 		return errors.New("empty slice")
 	}
@@ -259,9 +261,9 @@ func (n *Name) UnmarshalFormValue(values []string) error {
 
 func TestDecodeFormMultipart(t *testing.T) {
 	type Person struct {
-		Name    *Name    `form:"name"`
-		Age     int16    `form:"age"`
-		Hobbies []string `form:"hobby"`
+		Name    *Name    `map:"name"`
+		Age     int16    `map:"age"`
+		Hobbies []string `map:"hobby"`
 	}
 
 	var person Person
@@ -328,5 +330,28 @@ func TestLogger(t *testing.T) {
 			t.Fatal(line)
 		}
 	})
+}
 
+func TestDecodeHeader(t *testing.T) {
+	var mux http.ServeMux
+	type Header struct {
+		Date      encoding.HTTPDate
+		UserAgent string `map:"User-Agent"`
+	}
+	var header Header
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var g = gear.G(r)
+		if err := g.DecodeHeader(&header); err != nil {
+			t.Fatal(err)
+		}
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+	geartest.Curl(server.URL, "-H", "User-Agent: test/1", "-H", "Date: "+strings.Replace(time.Now().In(time.UTC).Format(time.RFC1123), " UTC", " GMT", 1))
+	if header.UserAgent != "test/1" {
+		t.Fatal(header)
+	}
+	if since := time.Since(time.Time(header.Date)); since > time.Second || since < 0 {
+		t.Fatal(header)
+	}
 }

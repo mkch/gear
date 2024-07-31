@@ -12,7 +12,7 @@ type Name struct {
 	Last  string
 }
 
-func (n *Name) UnmarshalFormValue(values []string) error {
+func (n *Name) UnmarshalMapValue(values []string) error {
 	if len(values) == 0 {
 		return errors.New("empty slice")
 	}

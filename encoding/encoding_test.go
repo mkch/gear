@@ -20,19 +20,19 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}
 
 	type S1 struct {
-		K1 int     `form:"k1"`
-		K2 float32 `form:"-"`
+		K1 int     `map:"k1"`
+		K2 float32 `map:"-"`
 		K3 []string
-		K4 []float64 `form:"k4"`
+		K4 []float64 `map:"k4"`
 		K5 *[]*int
-		K6 bool `form:"k6"`
-		K7 bool `form:"k7"`
+		K6 bool `map:"k6"`
+		K7 bool `map:"k7"`
 		k  int
 		K  any
 	}
 
 	var s S1
-	if err := encoding.DefaultFormDecoder.DecodeForm(values, &s); err != nil {
+	if err := encoding.DefaultFormDecoder.DecodeMap(values, &s); err != nil {
 		t.Fatal(err)
 	} else {
 		var _10 = 10
@@ -51,14 +51,14 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}
 
 	var m1 map[string][]string
-	if err := encoding.DefaultFormDecoder.DecodeForm(values, &m1); err != nil {
+	if err := encoding.DefaultFormDecoder.DecodeMap(values, &m1); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(url.Values(m1), values) {
 		t.Fatal(m1)
 	}
 
 	var m2 map[string]string
-	if err := encoding.DefaultFormDecoder.DecodeForm(values, &m2); err != nil {
+	if err := encoding.DefaultFormDecoder.DecodeMap(values, &m2); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(m2, map[string]string{
 		"k1": "1",
@@ -73,7 +73,7 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}
 
 	var m3 map[string]any
-	if err := encoding.DefaultFormDecoder.DecodeForm(values, &m3); err != nil {
+	if err := encoding.DefaultFormDecoder.DecodeMap(values, &m3); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(m3, map[string]any{
 		"k1": "1",

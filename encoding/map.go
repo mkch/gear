@@ -7,15 +7,17 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/mkch/gg"
 )
 
-// FormDecoder decodes form values, such as [http.Request.Form], [http.Request.PostForm].
+// MapDecoder decodes form values, request headers etc.
+// Commonly used with [http.Request.Header], [http.Request.Form] or [http.Request.PostForm].
 //
-// DecodeForm method works like [json.Unmarshal].
+// DecodeMap method works like [json.Unmarshal].
 // It parses [url.Values] and stores the result in the value pointed by v.
-// if v is nil or not a pointer, DecodeForm returns an [InvalidDecodeError].
+// if v is nil or not a pointer, DecodeMap returns an [InvalidDecodeError].
 //
 // The parameter v can be one of the following types.
 //   - *map[string][]string : *v is a copy of values.
@@ -27,35 +29,38 @@ import (
 //   - integers(int8, int18, uint, uintptr etc).
 //   - floats(float32, float64).
 //   - Pointers or slices of the the above.
-//   - Type implements [FormValueUnmarshaler].
+//   - Type implements [MapValueUnmarshaler].
 //
 // A Value is converted to the type of the field, if conversion failed, an [DecodeFieldError] will be returned.
 // Slices and pointers are allocated as necessary. A Slice field contains all the values of the key,
 // non-slice field contains the first value only. A FormValueUnmarshaler decodes []string into itself.
 //
 // The follow field tags can be used:
-//   - `form:"key_name"` : key_name is the name of the key.
-//   - `form:"-"`        : this field is ignored.
-type FormDecoder interface {
-	DecodeForm(values url.Values, v any) error
+//   - `map:"key_name"` : key_name is the name of the key.
+//   - `map:"-"`        : this field is ignored.
+type MapDecoder interface {
+	DecodeMap(values map[string][]string, v any) error
 }
 
-// FormValueUnmarshaler is the interface implemented by types that can unmarshal form []string.
-// The input is the value of url.Values. UnmarshalFormValue must copy the slice if it wishes
-// to retain the data after returning.
-type FormValueUnmarshaler interface {
-	UnmarshalFormValue([]string) error
+// Field tag used by [MapDecoder].
+const mapDecoderTag = "map"
+
+// MapValueUnmarshaler is the interface implemented by types that can unmarshal form []string.
+// UnmarshalMapValue must copy the slice if it wishes to retain the data after returning.
+// value can never be an empty slice.
+type MapValueUnmarshaler interface {
+	UnmarshalMapValue(value []string) error
 }
 
-// FormDecoderFunc is an adapter to allow the use of ordinary functions as [FormDecoder].
-// If f is a function with the appropriate signature, FormDecoderFunc(f) is a FormDecoder that calls f.
-type FormDecoderFunc func(values url.Values, v any) error
+// MapDecoderFunc is an adapter to allow the use of ordinary functions as [MapDecoder].
+// If f is a function with the appropriate signature, MapDecoderFunc(f) is a FormDecoder that calls f.
+type MapDecoderFunc func(values url.Values, v any) error
 
-func (f FormDecoderFunc) DecodeForm(values url.Values, v any) error {
+func (f MapDecoderFunc) DecodeMap(values map[string][]string, v any) error {
 	return f(values, v)
 }
 
-// An InvalidDecodeError describes an invalid argument passed to FormDecoder.DecodeForm().
+// An InvalidDecodeError describes an invalid argument passed to FormDecoder.DecodeMap().
 // The argument to decode must be a non-nil pointer.
 type InvalidDecodeError struct {
 	Type reflect.Type
@@ -72,7 +77,7 @@ func (e *InvalidDecodeError) Error() string {
 	return "gear: Decode(nil " + e.Type.String() + ")"
 }
 
-// An DecodeTypeError is returned by FormDecoder.DecodeForm, describing a type that can't be decoded into.
+// An DecodeTypeError is returned by FormDecoder.DecodeMap, describing a type that can't be decoded into.
 type DecodeTypeError struct {
 	Type reflect.Type
 }
@@ -81,7 +86,7 @@ func (err *DecodeTypeError) Error() string {
 	return "gear: cannot decode into " + err.Type.String()
 }
 
-// An DecodeAddressError is returned by FormDecoder.DecodeForm, describing a value that is not addressable.
+// An DecodeAddressError is returned by FormDecoder.DecodeMap, describing a value that is not addressable.
 type DecodeAddressError struct {
 	Type reflect.Type
 }
@@ -90,7 +95,7 @@ func (err *DecodeAddressError) Error() string {
 	return "gear: cannot decode into unaddressable value " + err.Type.String() + " value"
 }
 
-// An DecodeFieldError is returned by FormDecoder.DecodeForm, describing a value that can't convert to the type of field.
+// An DecodeFieldError is returned by FormDecoder.DecodeMap, describing a value that can't convert to the type of field.
 type DecodeFieldError struct {
 	Name  string
 	Type  reflect.Type
@@ -109,18 +114,53 @@ func (e *DecodeFieldError) Error() string {
 // DecodeForm decodes r.Form using decoder and stores the result in the value pointed by v.
 // If decoder is nil, [DefaultFormDecoder] will be used.
 // Note: r.ParseForm or ParseMultipartForm should be call to populate r.Form.
-func DecodeForm(r *http.Request, decoder FormDecoder, v any) (err error) {
+func DecodeForm(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = DefaultFormDecoder
 	}
-	return decoder.DecodeForm(r.Form, v)
+	return decoder.DecodeMap(r.Form, v)
 }
 
-// DefaultFormDecoder is the default implementation of [FormDecoder].
-var DefaultFormDecoder = FormDecoderFunc(decodeForm)
+// DecodeForm decodes r.Header using decoder and stores the result in the value pointed by v.
+// If decoder is nil, [DefaultHeaderDecoder] will be used.
+func DecodeHeader(r *http.Request, decoder MapDecoder, v any) (err error) {
+	if decoder == nil {
+		decoder = DefaultHeaderDecoder
+	}
+	return decoder.DecodeMap(r.Header, v)
+}
 
-// decodeForm is the default implementation of [FormDecoder.DecodeForm].
-func decodeForm(values url.Values, v any) error {
+// HTTPDate is timestamp used in HTTP headers such as Date, Last-Modified.
+// HTTPDate implements [MapValueUnmarshaler] and can be used with [MapDecoder].
+type HTTPDate time.Time
+
+// UnmarshalMapValue implements [MapValueUnmarshaler].
+func (date *HTTPDate) UnmarshalMapValue(value []string) error {
+	// https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.1.1
+	var t time.Time
+	var err error
+	if t, err = time.Parse(time.RFC1123, value[0]); err == nil {
+		*date = HTTPDate(t)
+		return nil
+	} else if t, err = time.Parse(time.RFC850, value[0]); err == nil {
+		*date = HTTPDate(t)
+		return nil
+	} else if t, err = time.Parse(time.ANSIC, value[0]); err == nil {
+		*date = HTTPDate(t)
+		return nil
+	} else {
+		return err
+	}
+}
+
+// DefaultFormDecoder is the default [MapDecoder] implementation to decode HTTP forms.
+var DefaultFormDecoder = MapDecoderFunc(decodeMap)
+
+// DefaultFormDecoder is the default [MapDecoder] implementation to decode HTTP headers.
+var DefaultHeaderDecoder = MapDecoderFunc(decodeMap)
+
+// decodeMap is the default implementation of [MapDecoder.DecodeMap].
+func decodeMap(values url.Values, v any) error {
 	typ := reflect.TypeOf(v)
 	val := reflect.ValueOf(v)
 	if typ == nil || typ.Kind() != reflect.Pointer || !val.IsValid() {
@@ -172,7 +212,7 @@ func decodeForm(values url.Values, v any) error {
 		if !field.IsExported() || field.Anonymous {
 			continue
 		}
-		tag := field.Tag.Get("form")
+		tag := field.Tag.Get(mapDecoderTag)
 		if tag == "-" {
 			continue // ignore
 		}
@@ -181,7 +221,7 @@ func decodeForm(values url.Values, v any) error {
 		if !values.Has(key) {
 			continue // key not found
 		}
-		if err := parseFormValue(values[key], val.Field(i)); err != nil {
+		if err := parseMapValue(values[key], val.Field(i)); err != nil {
 			err.Name = field.Name
 			return err
 		}
@@ -189,19 +229,27 @@ func decodeForm(values url.Values, v any) error {
 	return nil
 }
 
-var formUnmarshalerType = reflect.TypeOf((*FormValueUnmarshaler)(nil)).Elem()
+var formUnmarshalerType = reflect.TypeOf((*MapValueUnmarshaler)(nil)).Elem()
 
-// parseFormValue parses values into dest. Return non-nil if error occurs.
+// parseMapValue parses values into dest. Return non-nil if error occurs.
 // If err is not nil, the Name field is not set(unknown in this function).
-func parseFormValue(values []string, dest reflect.Value) *DecodeFieldError {
+func parseMapValue(values []string, dest reflect.Value) *DecodeFieldError {
 	var err error
 	t := dest.Type()
 	if t.Implements(formUnmarshalerType) {
+		// t implements MapValueUnmarshaler
 		if t.Kind() == reflect.Pointer && dest.IsNil() {
 			dest.Set(reflect.New(t.Elem()))
 		}
-		unmarshaler := dest.Interface().(FormValueUnmarshaler)
-		err = unmarshaler.UnmarshalFormValue(values)
+		unmarshaler := dest.Interface().(MapValueUnmarshaler)
+		err = unmarshaler.UnmarshalMapValue(values)
+		if err != nil {
+			return &DecodeFieldError{Type: t, Value: fmt.Sprintf("%v", values), Err: err}
+		}
+		return nil
+	} else if pt := reflect.PointerTo(t); pt.Implements(formUnmarshalerType) {
+		// *t implements MapValueUnmarshaler
+		err = dest.Addr().Interface().(MapValueUnmarshaler).UnmarshalMapValue(values)
 		if err != nil {
 			return &DecodeFieldError{Type: t, Value: fmt.Sprintf("%v", values), Err: err}
 		}
@@ -214,8 +262,8 @@ func parseFormValue(values []string, dest reflect.Value) *DecodeFieldError {
 	}
 	switch t.Kind() {
 	case reflect.Pointer:
-		var p = reflect.New(t.Elem())                            // alloc
-		if err := parseFormValue(values, p.Elem()); err != nil { // parse recursively
+		var p = reflect.New(t.Elem())                           // alloc
+		if err := parseMapValue(values, p.Elem()); err != nil { // parse recursively
 			return err
 		} else {
 			dest.Set(p)
@@ -223,8 +271,8 @@ func parseFormValue(values []string, dest reflect.Value) *DecodeFieldError {
 	case reflect.Slice:
 		s := dest
 		for i := range values {
-			var p = reflect.New(t.Elem())                                   // alloc
-			if err := parseFormValue(values[i:i+1], p.Elem()); err != nil { // parse recursively
+			var p = reflect.New(t.Elem())                                  // alloc
+			if err := parseMapValue(values[i:i+1], p.Elem()); err != nil { // parse recursively
 				return err
 			} else {
 				s = reflect.Append(s, p.Elem())
