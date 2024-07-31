@@ -29,7 +29,7 @@ type Person struct {
 	Age  int16 `form:"age"`
 }
 
-func ExampleFormValueUnmarshaler() {
+func ExampleMapValueUnmarshaler() {
 	var g *gear.Gear // From somewhere else.
 	var person Person
 	g.DecodeForm(&person) // Can decode: /some/path?name=John+Smith&age=20
