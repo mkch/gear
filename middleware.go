@@ -147,47 +147,19 @@ func (m *mwExec) serveMiddlewares(g *Gear) {
 //	"header.headerKey": request.Header[headerKey]
 func Logger(headerKeys ...string) Middleware {
 	return MiddlewareFuncWitName(func(g *Gear, next func(*Gear)) {
-		next(g)
-		var allHeaderKeys = headerKeys
-		if ctxKeys := g.ContextValue(loggerHeadersCtxKey); ctxKeys != nil {
-			allHeaderKeys = append(allHeaderKeys, ctxKeys.([]string)...)
-		}
-		var attrs = make([]slog.Attr, 0, 3+gg.If(len(allHeaderKeys) > 0, 1, 0)) // 3: method, host, URL
+		var attrs = make([]slog.Attr, 0, 3+gg.If(len(headerKeys) > 0, 1, 0)) // 3: method, host, URL
 		attrs = append(attrs,
 			slog.String("method", g.R.Method),
 			slog.String("host", g.R.Host),
 			slog.Any("URL", g.R.URL))
-		if len(allHeaderKeys) > 0 {
-			var headers []any = make([]any, 0, len(allHeaderKeys))
-			for _, key := range allHeaderKeys {
+		if len(headerKeys) > 0 {
+			var headers []any = make([]any, 0, len(headerKeys))
+			for _, key := range headerKeys {
 				headers = append(headers, slog.Any(key, g.R.Header[key]))
 			}
 			attrs = append(attrs, slog.Group("header", headers...))
 		}
 		RawLogger.LogAttrs(context.Background(), slog.LevelInfo, "HTTP", attrs...)
+		next(g)
 	}, "Logger")
-}
-
-// loggerHeadersCtxKey is a context key. It can be used in HTTP handlers and middlewares
-// with Gear.SetContextValue to set keys of headers logged by [Logger].
-var loggerHeadersCtxKey contextKey = "Logger.headers"
-
-// SetLoggerHeaderKeys sets extra keys of headers logged by [Logger].
-// The headers specified here will be logged alongside the headers of [Logger].
-// SetLoggerHeaderKeys is convenient to log request specified headers.
-// See also [LoggerHeaderKeys].
-func SetLoggerHeaderKeys(g *Gear, headerKeys ...string) {
-	if len(headerKeys) == 0 {
-		return
-	}
-	g.SetContextValue(loggerHeadersCtxKey, headerKeys)
-}
-
-// LoggerHeaderKeys is a [Middleware] to add keys of headers logged by [Logger].
-// See also [SetLoggerHeaderKeys].
-type LoggerHeaderKeys []string
-
-func (l LoggerHeaderKeys) Serve(g *Gear, next func(*Gear)) {
-	g.SetContextValue(loggerHeadersCtxKey, l)
-	next(g)
 }

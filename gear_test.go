@@ -310,25 +310,6 @@ func TestLogger(t *testing.T) {
 		if line := buf.String(); line != expected {
 			t.Fatal(line)
 		}
-
-		mux.HandleFunc("/d", func(w http.ResponseWriter, r *http.Request) {
-			gear.SetLoggerHeaderKeys(gear.G(r), "X-My-Header2")
-		})
-		geartest.Curl(server.URL+"/d", "-H", "X-My-Header2: v", "-H", "User-Agent: test/1")
-		expected += fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL=/d header.X-My-Header=[] header.User-Agent=[test/1] header.X-My-Header2=[v]`+"\n", host)
-		if line := buf.String(); line != expected {
-			t.Fatal(line)
-		}
-
-		mux.Handle("/e", gear.WrapFunc(
-			func(w http.ResponseWriter, r *http.Request) { /*NOP*/ },
-			gear.LoggerHeaderKeys{"X-MyHeader2"},
-		))
-		geartest.Curl(server.URL+"/d", "-H", "X-My-Header2: v", "-H", "User-Agent: test/1")
-		expected += fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL=/d header.X-My-Header=[] header.User-Agent=[test/1] header.X-My-Header2=[v]`+"\n", host)
-		if line := buf.String(); line != expected {
-			t.Fatal(line)
-		}
 	})
 }
 

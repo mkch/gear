@@ -124,23 +124,3 @@ func ExampleLogIfErr() {
 func ExampleLogIfErrT() {
 	gear.LogIfErrT(fmt.Println("msg"))
 }
-
-func ExampleSetLoggerHeaderKeys() {
-	http.HandleFunc("/path1", func(w http.ResponseWriter, r *http.Request) {
-		g := gear.G(r)
-		// Content-Type and User-Agent of this request will be logged.
-		gear.SetLoggerHeaderKeys(g, "User-Agent")
-	})
-
-	// Log Content-Type by default.
-	gear.ListenAndServe(":http", nil, gear.Logger("Content-Type"))
-}
-
-func ExampleLoggerHeaderKeys() {
-	http.Handle("/path1", gear.WrapFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle the request.
-	}, gear.LoggerHeaderKeys{"User-Agent"})) // Content-Type and User-Agent of /path1 will be logged.
-
-	// Log Content-Type by default.
-	gear.ListenAndServe(":http", nil, gear.Logger("Content-Type"))
-}
