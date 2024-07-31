@@ -191,7 +191,7 @@ func getGear(r *http.Request) any {
 // Wrap wraps handler and add Gear to it.
 // If handler is nil, http.DefaultServeMux will be used.
 // Parameter middlewares will be added to the result Handler.
-// Middlewares will be called in reversed order of addition,
+// Middlewares will be served in reversed order of addition,
 // so panic recovery middleware should be added last to catch all panics.
 func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	if handler == nil {
@@ -214,7 +214,7 @@ func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 // WrapFunc wraps f to a handler and add Gear to it.
 // If f is nil, http.DefaultServeMux.ServeHTTP will be used.
 // Parameter middlewares will be added to the result Handler.
-// Middlewares will be called in reversed order of addition ,
+// Middlewares will be served in reversed order of addition ,
 // so panic recovery middleware should be added last to catch all panics.
 func WrapFunc(f func(w http.ResponseWriter, r *http.Request), middlewares ...Middleware) http.Handler {
 	if f == nil {
