@@ -335,8 +335,8 @@ func TestLogger(t *testing.T) {
 func TestDecodeHeader(t *testing.T) {
 	var mux http.ServeMux
 	type Header struct {
-		Date      encoding.HTTPDate
-		UserAgent string `map:"User-Agent"`
+		IfModifiedSince encoding.HTTPDate `map:"If-Modified-Since"`
+		UserAgent       string            `map:"User-Agent"`
 	}
 	var header Header
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -347,11 +347,11 @@ func TestDecodeHeader(t *testing.T) {
 	})
 	server := gear.NewTestServer(&mux)
 	defer server.Close()
-	geartest.Curl(server.URL, "-H", "User-Agent: test/1", "-H", "Date: "+strings.Replace(time.Now().In(time.UTC).Format(time.RFC1123), " UTC", " GMT", 1))
+	geartest.Curl(server.URL, "-H", "User-Agent: test/1", "-H", "If-Modified-Since: "+strings.Replace(time.Now().In(time.UTC).Format(time.RFC1123), " UTC", " GMT", 1))
 	if header.UserAgent != "test/1" {
 		t.Fatal(header)
 	}
-	if since := time.Since(time.Time(header.Date)); since > time.Second || since < 0 {
+	if since := time.Since(time.Time(header.IfModifiedSince)); since > time.Second || since < 0 {
 		t.Fatal(header)
 	}
 }

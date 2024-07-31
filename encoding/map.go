@@ -132,7 +132,7 @@ func DecodeHeader(r *http.Request, decoder MapDecoder, v any) (err error) {
 	return decoder.DecodeMap(r.Header, v)
 }
 
-// HTTPDate is a timestamp used in HTTP headers such as Date, Last-Modified.
+// HTTPDate is a timestamp used in HTTP headers such as IfModifiedSince, Date, Last-Modified.
 // HTTPDate implements [MapValueUnmarshaler] and can be used with [MapDecoder].
 type HTTPDate time.Time
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/mkch/gear"
 	"github.com/mkch/gear/encoding"
 )
 
@@ -20,4 +21,14 @@ func ExampleBodyDecoder() {
 		Msg  string
 	}
 	encoding.DecodeBody(r, JSONBodyDecoder, &object)
+}
+
+func ExampleHTTPDate() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		type Header struct {
+			IfModifiedSince encoding.HTTPDate `map:"If-Modified-Since"`
+		}
+		var header Header
+		gear.G(r).DecodeHeader(&header)
+	})
 }
