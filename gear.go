@@ -27,6 +27,17 @@ type Gear struct {
 	stopped bool                // Whether g.Stop() has been called.
 }
 
+// SetContextValue sets the request context value associated with key to val.
+func (g *Gear) SetContextValue(key, val any) {
+	g.R = g.R.WithContext(context.WithValue(g.R.Context(), key, val))
+}
+
+// ContextValue returns the request context value associated with key,
+// or nil if no value is associated with key.
+func (g *Gear) ContextValue(key any) any {
+	return g.R.Context().Value(key)
+}
+
 // Stop stops further middleware processing.
 // Current middleware is unaffected.
 func (g *Gear) Stop() {

@@ -299,20 +299,33 @@ func TestLogger(t *testing.T) {
 		},
 	})), func() {
 		var mux http.ServeMux
-		server := gear.NewTestServer(&mux, gear.Logger())
+		server := gear.NewTestServer(&mux, gear.Logger("X-My-Header", "User-Agent"))
 		defer server.Close()
 		var reqUrl = gg.Must(url.Parse(server.URL))
 		var host = reqUrl.Host
-		reqUrl.Path = "/a/b/c"
-		reqUrl.RawQuery = "x=y"
-		if resp, err := http.Get(reqUrl.String()); err != nil {
-			t.Fatal(err)
-		} else {
-			defer resp.Body.Close()
-			expected := fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL="/a/b/c?x=y"`+"\n", host)
-			if line := buf.String(); line != expected {
-				t.Fatal(line)
-			}
+		geartest.Curl(server.URL+"/a/b/c?x=y", "-H", "X-My-Header: v1", "-H", "User-Agent: test/1")
+		expected := fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL="/a/b/c?x=y" header.X-My-Header=[v1] header.User-Agent=[test/1]`+"\n", host)
+		if line := buf.String(); line != expected {
+			t.Fatal(line)
+		}
+
+		mux.HandleFunc("/d", func(w http.ResponseWriter, r *http.Request) {
+			gear.SetLoggerHeaderKeys(gear.G(r), "X-My-Header2")
+		})
+		geartest.Curl(server.URL+"/d", "-H", "X-My-Header2: v", "-H", "User-Agent: test/1")
+		expected += fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL=/d header.X-My-Header=[] header.User-Agent=[test/1] header.X-My-Header2=[v]`+"\n", host)
+		if line := buf.String(); line != expected {
+			t.Fatal(line)
+		}
+
+		mux.Handle("/e", gear.WrapFunc(
+			func(w http.ResponseWriter, r *http.Request) { /*NOP*/ },
+			gear.LoggerHeaderKeys{"X-MyHeader2"},
+		))
+		geartest.Curl(server.URL+"/d", "-H", "X-My-Header2: v", "-H", "User-Agent: test/1")
+		expected += fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL=/d header.X-My-Header=[] header.User-Agent=[test/1] header.X-My-Header2=[v]`+"\n", host)
+		if line := buf.String(); line != expected {
+			t.Fatal(line)
 		}
 	})
 
