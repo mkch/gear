@@ -46,9 +46,11 @@ type MapDecoder interface {
 const mapDecoderTag = "map"
 
 // MapValueUnmarshaler is the interface implemented by types that can unmarshal form []string.
+// [MapDecoder] decodes a MapValueUnmarshaler value by calling it's UnmarshalMapValue() method.
 // UnmarshalMapValue must copy the slice if it wishes to retain the data after returning.
-// value can never be an empty slice.
 type MapValueUnmarshaler interface {
+	// UnmarshalMapValue unmarshal from value.
+	// Parameter value is a non-empty slice.
 	UnmarshalMapValue(value []string) error
 }
 
@@ -130,7 +132,7 @@ func DecodeHeader(r *http.Request, decoder MapDecoder, v any) (err error) {
 	return decoder.DecodeMap(r.Header, v)
 }
 
-// HTTPDate is timestamp used in HTTP headers such as Date, Last-Modified.
+// HTTPDate is a timestamp used in HTTP headers such as Date, Last-Modified.
 // HTTPDate implements [MapValueUnmarshaler] and can be used with [MapDecoder].
 type HTTPDate time.Time
 
