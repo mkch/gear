@@ -46,6 +46,7 @@ func (g *Gear) Stop() {
 
 // RawLogger used by Gear.
 // Do not set a nil Logger, using log level to control output.
+// See [NoLog].
 var RawLogger *slog.Logger = slog.Default()
 
 // NoLog returns a Logger discards all messages and has a level of -99.
@@ -188,7 +189,7 @@ func getGear(r *http.Request) any {
 	return r.Context().Value(ctxKey)
 }
 
-// Wrap wraps handler and add Gear to it.
+// Wrap wraps handler and adds Gear to it.
 // If handler is nil, http.DefaultServeMux will be used.
 // Parameter middlewares will be added to the result Handler.
 // Middlewares will be served in reversed order of addition,
@@ -211,7 +212,7 @@ func Wrap(handler http.Handler, middlewares ...Middleware) http.Handler {
 	})
 }
 
-// WrapFunc wraps f to a handler and add Gear to it.
+// WrapFunc wraps f to a handler and adds Gear to it.
 // If f is nil, http.DefaultServeMux.ServeHTTP will be used.
 // Parameter middlewares will be added to the result Handler.
 // Middlewares will be served in reversed order of addition ,
@@ -223,38 +224,38 @@ func WrapFunc(f func(w http.ResponseWriter, r *http.Request), middlewares ...Mid
 	return Wrap(http.HandlerFunc(f), middlewares...)
 }
 
-// ListenAndServe calls http.ListenAndServe(addr, Wrap(handler, middlewares...)).
-// If handler is nil, http.DefaultServeMux wil be used.
+// ListenAndServe calls [http.ListenAndServe](addr, [Wrap](handler, middlewares...)).
+// If handler is nil, [http.DefaultServeMux] wil be used.
 func ListenAndServe(addr string, handler http.Handler, middlewares ...Middleware) error {
 	return http.ListenAndServe(addr, Wrap(handler, middlewares...))
 }
 
-// ListenAndServe calls http.ListenAndServeTLS(addr, certFile, keyFile, Wrap(handler, middlewares...)).
-// If handler is nil, http.DefaultServeMux wil be used.
+// ListenAndServe calls [http.ListenAndServeTLS](addr, certFile, keyFile, [Wrap](handler, middlewares...)).
+// If handler is nil, [http.DefaultServeMux] wil be used.
 func ListenAndServeTLS(addr, certFile, keyFile string, handler http.Handler, middlewares ...Middleware) error {
 	return http.ListenAndServeTLS(addr, certFile, keyFile, Wrap(handler, middlewares...))
 }
 
-// WrapServer wraps server.Handler using Wrap() and returns server itself.
+// WrapServer wraps server.Handler using [Wrap]() and returns server itself.
 func WrapServer(server *http.Server, middlewares ...Middleware) *http.Server {
 	server.Handler = Wrap(server.Handler, middlewares...)
 	return server
 }
 
-// Server calls httptest.NewServer with Wrap(handler, middlewares)).
+// Server calls [httptest.NewServer]() with [Wrap](handler, middlewares...)).
 func NewTestServer(handler http.Handler, middlewares ...Middleware) *httptest.Server {
 	return httptest.NewServer(Wrap(handler, middlewares...))
 }
 
-// PathInterceptor is a [Middleware] matches the prefix of request url path.
+// PathInterceptor is a [Middleware] intercepting requests with matching URLs.
 type PathInterceptor struct {
 	prefix      string
 	prefixSlash string
 	handler     Middleware
 }
 
-// NewPathInterceptor returns a [PathInterceptor] that execute handler when the
-// request url path contains prefix.
+// NewPathInterceptor returns a [PathInterceptor] which executes handler when the
+// path of request URL contains prefix.
 func NewPathInterceptor(prefix string, handler Middleware) *PathInterceptor {
 	prefix = path.Clean(prefix)
 	pathSlash := prefix
