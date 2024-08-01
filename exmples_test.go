@@ -124,3 +124,11 @@ func ExampleLogIfErr() {
 func ExampleLogIfErrT() {
 	gear.LogIfErrT(fmt.Println("msg"))
 }
+
+func ExampleLogger() {
+	// logger logs HTTP method, host, URL(by default) and User-Agent header for request.
+	logger := gear.Logger(&gear.LoggerOptions{
+		HeaderKeys: []string{"User-Agent"},
+	})
+	gear.ListenAndServe(":http", nil, logger)
+}
