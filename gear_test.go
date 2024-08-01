@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -301,12 +300,15 @@ func TestLogger(t *testing.T) {
 		},
 	})), func() {
 		var mux http.ServeMux
-		server := gear.NewTestServer(&mux, gear.Logger("X-My-Header", "User-Agent"))
+		server := gear.NewTestServer(&mux, gear.Logger(&gear.LoggerOptions{
+			Keys: map[string]bool{
+				gear.LoggerMethodKey: true,
+				gear.LoggerURLKey:    true,
+				gear.LoggerHeaderKey: true},
+			HeaderKeys: []string{"X-My-Header", "User-Agent"}}))
 		defer server.Close()
-		var reqUrl = gg.Must(url.Parse(server.URL))
-		var host = reqUrl.Host
 		geartest.Curl(server.URL+"/a/b/c?x=y", "-H", "X-My-Header: v1", "-H", "User-Agent: test/1")
-		expected := fmt.Sprintf(`level=INFO msg=HTTP method=GET host=%s URL="/a/b/c?x=y" header.X-My-Header=[v1] header.User-Agent=[test/1]`+"\n", host)
+		expected := `level=INFO msg=HTTP method=GET URL="/a/b/c?x=y" header.X-My-Header=[v1] header.User-Agent=[test/1]` + "\n"
 		if line := buf.String(); line != expected {
 			t.Fatal(line)
 		}

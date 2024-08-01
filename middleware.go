@@ -134,7 +134,39 @@ func (m *mwExec) serveMiddlewares(g *Gear) {
 	})
 }
 
+const (
+	// LoggerMethodKey is the key used by [Logger] for the HTTP method of HTTP request.
+	// The associated Value is a string.
+	LoggerMethodKey = "method"
+	// LoggerMethodKey is the key used by [Logger] for the host of HTTP request.
+	// The associated Value is a string.
+	LoggerHostKey = "host"
+	// LoggerMethodKey is the key used by [Logger] for the URL of HTTP request.
+	// The associated Value is a string.
+	LoggerURLKey = "URL"
+	// LoggerMethodKey is the group key used by [Logger] for the header of HTTP request.
+	// The associated Value in group is a string.
+	LoggerHeaderKey = "header"
+)
+
+// LoggerOptions are options for [Logger]. A zero LoggerOptions consists entirely of zero values.
+type LoggerOptions struct {
+	// Keys are the keys to log. Keys is a set of strings.
+	// Zero value means all Logger keys available(See LoggerMethodKey etc).
+	Keys map[string]bool
+	// HeaderKeys are the keys of HTTP header to log.
+	// HeaderKeys are only used when LoggerHeaderKey is in Keys.
+	// Zero value means not logging any header value.
+	HeaderKeys []string
+	// Attrs can be used to generate the slog.Attr slice to log for r.
+	// If Attrs is not nil, all fields above are ignored, the Logger just
+	// calls LogAttrs() to log the return value of this function.
+	// This function should not retain or modify r.
+	Attrs func(r *http.Request) []slog.Attr
+}
+
 // Logger returns a [Middleware] to log HTTP access log.
+// If opt is nil, the default options are used.
 //
 // Log level: LevelInfo
 //
@@ -145,19 +177,47 @@ func (m *mwExec) serveMiddlewares(g *Gear) {
 //	"host": request.Host
 //	"URL": request.URL
 //	"header.headerKey": request.Header[headerKey]
-func Logger(headerKeys ...string) Middleware {
+func Logger(opt *LoggerOptions) Middleware {
 	return MiddlewareFuncWitName(func(g *Gear, next func(*Gear)) {
-		var attrs = make([]slog.Attr, 0, 3+gg.If(len(headerKeys) > 0, 1, 0)) // 3: method, host, URL
-		attrs = append(attrs,
-			slog.String("method", g.R.Method),
-			slog.String("host", g.R.Host),
-			slog.Any("URL", g.R.URL))
-		if len(headerKeys) > 0 {
-			var headers []any = make([]any, 0, len(headerKeys))
-			for _, key := range headerKeys {
-				headers = append(headers, slog.Any(key, g.R.Header[key]))
+		var attrs []slog.Attr
+		if opt != nil && opt.Attrs != nil { // opt.Attrs takes precedency.
+			attrs = opt.Attrs(g.R)
+		} else {
+			// Default values.
+			var headerKeys []string
+			var logMethod = true
+			var logHost = true
+			var logURL = true
+			// Values in options.
+			if opt != nil {
+				var logHeader = true
+				if opt.Keys != nil {
+					logMethod = opt.Keys[LoggerMethodKey]
+					logHost = opt.Keys[LoggerHostKey]
+					logURL = opt.Keys[LoggerURLKey]
+					logHeader = opt.Keys[LoggerHeaderKey]
+				}
+				if logHeader && opt.HeaderKeys != nil {
+					headerKeys = opt.HeaderKeys
+				}
 			}
-			attrs = append(attrs, slog.Group("header", headers...))
+			attrs = make([]slog.Attr, 0, 3+gg.If(len(headerKeys) > 0, 1, 0)) // 3: method, host, URL
+			if logMethod {
+				attrs = append(attrs, slog.String(LoggerMethodKey, g.R.Method))
+			}
+			if logHost {
+				attrs = append(attrs, slog.String(LoggerHostKey, g.R.Host))
+			}
+			if logURL {
+				attrs = append(attrs, slog.Any(LoggerURLKey, g.R.URL))
+			}
+			if len(headerKeys) > 0 {
+				var headers []any = make([]any, 0, len(headerKeys))
+				for _, key := range headerKeys {
+					headers = append(headers, slog.Any(key, g.R.Header[key]))
+				}
+				attrs = append(attrs, slog.Group(LoggerHeaderKey, headers...))
+			}
 		}
 		RawLogger.LogAttrs(context.Background(), slog.LevelInfo, "HTTP", attrs...)
 		next(g)
