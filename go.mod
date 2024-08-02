@@ -2,4 +2,4 @@ module github.com/mkch/gear
 
 go 1.22.5
 
-require github.com/mkch/gg v0.0.0-20240126094904-8d17c81281f6
+require github.com/mkch/gg v0.0.0-20240802180114-a8ab4d0b45a6

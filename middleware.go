@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/mkch/gg"
+	runtimegg "github.com/mkch/gg/runtime"
 )
 
 // Middleware is a middleware used in Gear framework.
@@ -23,14 +24,22 @@ type MiddlewareName interface {
 
 // panicRecovery is the default [Middleware] recovers from panics.
 // It sends 500 response.
-type panicRecovery struct{}
+type panicRecovery struct {
+	// Whether add "stack" attribute.
+	addStack bool
+}
 
 // Serve implements [Middleware].
 func (p panicRecovery) Serve(g *Gear, next func(*Gear)) {
 	defer func() {
 		v := recover()
 		if v != nil {
-			RawLogger.Error("recovered from panic", "value", v)
+			var attrs = make([]slog.Attr, 0, gg.If(p.addStack, 2, 1))
+			attrs = append(attrs, slog.Any("value", v))
+			if p.addStack {
+				attrs = append(attrs, slog.Any("stack", runtimegg.Stack(1, 0))) // 1: skip this anonymous function.
+			}
+			RawLogger.LogAttrs(context.Background(), slog.LevelError, "recovered from panic", attrs...)
 			g.Error(http.StatusInternalServerError)
 			g.Stop()
 		}
@@ -44,10 +53,12 @@ func (p panicRecovery) MiddlewareName() string {
 }
 
 // PanicRecovery returns a [Middleware] which recovers from panics,
-// logs "recovered from panic: panic_value" and sends 500 responses.
+// logs a LevelError message "recovered from panic" and sends 500 responses.
+// The "value" attribute is set to panic value.
+// If addStack is true, "stack" attribute is set to the string representation of the call stack.
 // Panic recovery middleware should be added as the last middleware to catch all panics.
-func PanicRecovery() Middleware {
-	return panicRecovery{}
+func PanicRecovery(addStack bool) Middleware {
+	return panicRecovery{addStack}
 }
 
 // func middlewareName(m Middleware) string {

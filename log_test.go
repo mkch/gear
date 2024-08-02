@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/mkch/gear"
-	"github.com/mkch/gear/impl/geartest"
+	runtimegg "github.com/mkch/gg/runtime"
 )
 
 func withLogger(logger *slog.Logger, f func()) {
@@ -30,23 +30,23 @@ func TestLog(t *testing.T) {
 		Err    string      `json:"err"`
 	}
 	withLogger(slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{AddSource: true, Level: &level})), func() {
-		srcD := geartest.Source()
+		srcD := runtimegg.Source()
 		gear.LogD("debug", "val", 1)
 		srcD.Line--
 		gear.LogI("info", "val", 2)
-		srcI := geartest.Source()
+		srcI := runtimegg.Source()
 		srcI.Line--
 		gear.LogW("warn", "val", 3)
-		srcW := geartest.Source()
+		srcW := runtimegg.Source()
 		srcW.Line--
 		gear.LogE("error", "val", 4)
-		srcE := geartest.Source()
+		srcE := runtimegg.Source()
 		srcE.Line--
 		gear.LogIfErr(errors.New("err"))
-		srcIE := geartest.Source()
+		srcIE := runtimegg.Source()
 		srcIE.Line--
 		gear.LogIfErrT("ret", errors.New("err2"))
-		srcIET := geartest.Source()
+		srcIET := runtimegg.Source()
 		srcIET.Line--
 
 		var m msg
