@@ -25,10 +25,26 @@ type Validator interface {
 
 var validator Validator
 
-// Register registers v as the validator used by this package.
-// Register overwrites existing validator if any.
+// Register sets v as the validator used by this package and
+// replaces existing validator if any.
+// Register panics if v is nil.
 func Register(v Validator) {
+	if v == nil {
+		panic("nil validator")
+	}
 	validator = v
+}
+
+// Registered returns whether a validator has been registered.
+func Registered() bool {
+	return validator != nil
+}
+
+// MustRegistered panics if no validator has been registered.
+func MustRegistered() {
+	if !Registered() {
+		panic("no validator")
+	}
 }
 
 // InvalidValidationError records a type that can not be validated.
