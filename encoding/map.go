@@ -228,8 +228,8 @@ func decodeMap(values url.Values, v any) error {
 		if !field.IsExported() || field.Anonymous {
 			continue
 		}
-		tag := field.Tag.Get(mapDecoderTag)
-		if tag == "-" {
+		tag, ok := field.Tag.Lookup(mapDecoderTag)
+		if !ok || tag == "-" {
 			continue // ignore
 		}
 		// key to map
