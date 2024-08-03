@@ -120,7 +120,7 @@ func DecodeForm(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = FormDecoder
 	}
-	return decoder.DecodeMap(r.Form, v)
+	return validate[map[string][]string](decoder.DecodeMap, r.Form, v)
 }
 
 // DecodeForm decodes r.Header using decoder and stores the result in the value pointed by v.
@@ -129,7 +129,7 @@ func DecodeHeader(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = HeaderDecoder
 	}
-	return decoder.DecodeMap(r.Header, v)
+	return validate[map[string][]string](decoder.DecodeMap, r.Header, v)
 }
 
 // DecodeQuery decodes r.URL.Query() using decoder and stores the result in the value pointed by v.
@@ -138,7 +138,7 @@ func DecodeQuery(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = QueryDecoder
 	}
-	return decoder.DecodeMap(r.URL.Query(), v)
+	return validate[map[string][]string](decoder.DecodeMap, r.URL.Query(), v)
 }
 
 // HTTPDate is a timestamp used in HTTP headers such as IfModifiedSince, Date, Last-Modified.
@@ -228,8 +228,8 @@ func decodeMap(values url.Values, v any) error {
 		if !field.IsExported() || field.Anonymous {
 			continue
 		}
-		tag, ok := field.Tag.Lookup(mapDecoderTag)
-		if !ok || tag == "-" {
+		tag, _ := field.Tag.Lookup(mapDecoderTag)
+		if tag == "-" {
 			continue // ignore
 		}
 		// key to map

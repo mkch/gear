@@ -3,9 +3,12 @@ package encoding
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/mkch/gear/validator"
 )
 
 // BodyDecoder docodes body of http request.
@@ -54,7 +57,7 @@ func DecodeBody(r *http.Request, decoder BodyDecoder, v any) (err error) {
 			return
 		}
 	}
-	return decoder.DecodeBody(r.Body, v)
+	return validate[io.Reader](decoder.DecodeBody, r.Body, v)
 }
 
 const (
@@ -101,4 +104,24 @@ var EncodeJSON = func(v any, w io.Writer) error {
 // EncodeXML writes the XML encoding of v to the stream w.
 var EncodeXML = func(v any, w io.Writer) error {
 	return xml.NewEncoder(w).Encode(v)
+}
+
+// validate calls decode(src, dest) first, if it returns an error, validate returns it.
+// Otherwise the return value of validating dest is returned, but an
+// *validator.InvalidValidationError is considered as nil.
+func validate[T any](decode func(T, any) error, src T, dest any) (err error) {
+	err = decode(src, dest)
+	if err != nil {
+		return
+	}
+	var invalid *validator.InvalidValidationError
+	var validated bool
+	if validated, err = validator.Struct(dest); !validated {
+		return nil
+	} else if errors.As(err, &invalid) {
+		// InvalidValidationError means dest can't be validated by the validator.
+		// Leave it alone.
+		return nil
+	}
+	return
 }
