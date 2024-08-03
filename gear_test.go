@@ -2,6 +2,8 @@ package gear_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -388,5 +390,49 @@ func TestDecodeQuery(t *testing.T) {
 	geartest.Curl(server.URL + "/?user=abc&id=100")
 	if user.Username != "abc" {
 		t.Fatal(user)
+	}
+}
+
+func TestEncodeJSON(t *testing.T) {
+	type Resp struct{ Reason string }
+	var mux http.ServeMux
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var resp = Resp{"the reason"}
+		gear.G(r).JSONResponse(http.StatusBadRequest, resp)
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+	body, vars := geartest.Curl(server.URL)
+	if code := vars["response_code"]; code != float64(http.StatusBadRequest) {
+		t.Fatal(code)
+	}
+	var resp Resp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Reason != "the reason" {
+		t.Fatal(resp)
+	}
+}
+
+func TestEncodeXML(t *testing.T) {
+	type Resp struct{ Reason string }
+	var mux http.ServeMux
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var resp = Resp{"the reason"}
+		gear.G(r).XMLResponse(http.StatusBadRequest, resp)
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+	body, vars := geartest.Curl(server.URL)
+	if code := vars["response_code"]; code != float64(http.StatusBadRequest) {
+		t.Fatal(code)
+	}
+	var resp Resp
+	if err := xml.Unmarshal(body, &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Reason != "the reason" {
+		t.Fatal(resp)
 	}
 }

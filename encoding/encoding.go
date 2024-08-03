@@ -81,6 +81,11 @@ func selectBodyDecoder(r *http.Request) (decoder BodyDecoder, err error) {
 }
 
 // EncodeJSON writes the JSON encoding of v to the stream w.
-func EncodeJSON(v any, w io.Writer) error {
+var EncodeJSON = func(v any, w io.Writer) error {
 	return json.NewEncoder(w).Encode(v)
+}
+
+// EncodeXML writes the XML encoding of v to the stream w.
+var EncodeXML = func(v any, w io.Writer) error {
+	return xml.NewEncoder(w).Encode(v)
 }

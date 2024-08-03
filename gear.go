@@ -229,6 +229,17 @@ func (g *Gear) JSONResponse(code int, v any) error {
 	return g.JSON(v)
 }
 
+// XML writes XML encoding of v to the response.
+func (g *Gear) XML(v any) error {
+	return encoding.EncodeXML(v, g.W)
+}
+
+// XMLResponse writes code and JSON encoding of v to the response.
+func (g *Gear) XMLResponse(code int, v any) error {
+	g.W.WriteHeader(code)
+	return g.XML(v)
+}
+
 // G retrives the Gear in r. It panics if no Gear.
 func G(r *http.Request) *Gear {
 	if g := getGear(r); g == nil {
