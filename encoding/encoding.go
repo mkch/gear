@@ -34,16 +34,18 @@ var XMLBodyDecoder BodyDecoder = BodyDecoderFunc(func(body io.Reader, v any) err
 	return xml.NewDecoder(body).Decode(v)
 })
 
-// UnknownContentType is returned by [DecodeBody] if there is no such [BodyDecoder] to decode the body.
-type UnknownContentType string
+// UnknownMIMEError is returned by [DecodeBody] if there is no such [BodyDecoder]
+// matching MIME of the request body.
+type UnknownMIMEError string
 
-func (err UnknownContentType) Error() string {
+func (err UnknownMIMEError) Error() string {
 	return fmt.Sprintf("known Content-Type %v", string(err))
 }
 
 // DecodeBody decodes r.Body using decoder and stores the result in the value pointed to by v.
-// If decoder is nil, Content-Type header of r wii be used to select an available decoder.
-// If there is no decoder available for that type, [UnknownContentType] error is returned.
+// If decoder is nil, Content-Type header of r will be used to select an appropriate decoder
+// from the built-in decoders and  decoders registered by [RegisterBodyDecoder].
+// If there is no decoder for that type, [UnknownMIMEError] error is returned.
 // See [BodyDecoder] for details.
 func DecodeBody(r *http.Request, decoder BodyDecoder, v any) (err error) {
 	if decoder == nil {
@@ -62,20 +64,31 @@ const (
 )
 
 // key is the content type.
-var bodyDecoders = map[string]*BodyDecoder{
-	MIME_JSON:     &JSONBodyDecoder,
-	MIME_XML:      &XMLBodyDecoder,
-	MIME_TEXT_XML: &XMLBodyDecoder,
+var bodyDecoders = map[string]BodyDecoder{
+	MIME_JSON:     JSONBodyDecoder,
+	MIME_XML:      XMLBodyDecoder,
+	MIME_TEXT_XML: XMLBodyDecoder,
+}
+
+// RegisterBodyDecoder registers decoder for mime, previous
+// decoder(if any) of mime will be overwritten.
+// This package registers [JSONBodyDecoder] for [MIME_JSON],
+// and [XMLBodyDecoder] for [MIME_XML] and [MIME_TEXT_XML]
+// in package initialization.
+// [DecodeBody] selects an appropriate decoder from the registered
+// decoders to decode the request body.
+//
+// It's not safe to call RegisterBodyDecoder concurrently with [DecodeBody].
+func RegisterBodyDecoder(mime string, decoder BodyDecoder) {
+	bodyDecoders[mime] = decoder
 }
 
 // selectBodyDecoder returns an decoder from bodyDecoders which can decode the
 // body of r. The selection is made by Content-Type header.
 func selectBodyDecoder(r *http.Request) (decoder BodyDecoder, err error) {
 	mime := r.Header.Get("Content-Type")
-	if p := bodyDecoders[mime]; p == nil {
-		err = UnknownContentType(mime)
-	} else {
-		decoder = *p
+	if decoder = bodyDecoders[mime]; decoder == nil {
+		err = UnknownMIMEError(mime)
 	}
 	return
 }

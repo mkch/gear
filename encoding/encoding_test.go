@@ -95,10 +95,9 @@ func TestDefaultFormDecoder(t *testing.T) {
 
 func TestCustomDecoder(t *testing.T) {
 	var errCustomDecoder = errors.New("custom")
-	// This should take effect and cause gear.G(r).DecodeBody return sentinel error above.
-	encoding.JSONBodyDecoder = encoding.BodyDecoderFunc(func(body io.Reader, v any) error {
+	encoding.RegisterBodyDecoder(encoding.MIME_JSON, encoding.BodyDecoderFunc(func(body io.Reader, v any) error {
 		return errCustomDecoder
-	})
+	}))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		var v string
 		if err := gear.G(r).DecodeBody(&v); err != errCustomDecoder {
