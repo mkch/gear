@@ -28,7 +28,7 @@ func jsonBodyDecoder(body io.Reader, v any) error {
 }
 
 // JSONBodyDecoder decodes body into JSON object.
-var JSONBodyDecoder = BodyDecoderFunc(jsonBodyDecoder)
+var JSONBodyDecoder BodyDecoder = BodyDecoderFunc(jsonBodyDecoder)
 
 // UnknownContentType is returned by [DecodeBody] if there is no such [BodyDecoder] to decode the body.
 type UnknownContentType string

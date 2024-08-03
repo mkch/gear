@@ -114,22 +114,31 @@ func (e *DecodeFieldError) Error() string {
 }
 
 // DecodeForm decodes r.Form using decoder and stores the result in the value pointed by v.
-// If decoder is nil, [DefaultFormDecoder] will be used.
+// If decoder is nil, [FormDecoder] will be used.
 // Note: r.ParseForm or ParseMultipartForm should be call to populate r.Form.
 func DecodeForm(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
-		decoder = DefaultFormDecoder
+		decoder = FormDecoder
 	}
 	return decoder.DecodeMap(r.Form, v)
 }
 
 // DecodeForm decodes r.Header using decoder and stores the result in the value pointed by v.
-// If decoder is nil, [DefaultHeaderDecoder] will be used.
+// If decoder is nil, [HeaderDecoder] will be used.
 func DecodeHeader(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
-		decoder = DefaultHeaderDecoder
+		decoder = HeaderDecoder
 	}
 	return decoder.DecodeMap(r.Header, v)
+}
+
+// DecodeQuery decodes r.URL.Query() using decoder and stores the result in the value pointed by v.
+// If decoder is nil, [QueryDecoder] will be used.
+func DecodeQuery(r *http.Request, decoder MapDecoder, v any) (err error) {
+	if decoder == nil {
+		decoder = QueryDecoder
+	}
+	return decoder.DecodeMap(r.URL.Query(), v)
 }
 
 // HTTPDate is a timestamp used in HTTP headers such as IfModifiedSince, Date, Last-Modified.
@@ -155,11 +164,16 @@ func (date *HTTPDate) UnmarshalMapValue(value []string) error {
 	}
 }
 
-// DefaultFormDecoder is the default [MapDecoder] implementation to decode HTTP forms.
-var DefaultFormDecoder = MapDecoderFunc(decodeMap)
+var defaultMapDecoder = MapDecoderFunc(decodeMap)
+
+// FormDecoder is the default [MapDecoder] implementation to decode HTTP forms.
+var FormDecoder MapDecoder = defaultMapDecoder
 
 // DefaultFormDecoder is the default [MapDecoder] implementation to decode HTTP headers.
-var DefaultHeaderDecoder = MapDecoderFunc(decodeMap)
+var HeaderDecoder MapDecoder = defaultMapDecoder
+
+// QueryDecoder is the default [MapDecoder] implementation to decode URL queries.
+var QueryDecoder MapDecoder = defaultMapDecoder
 
 // decodeMap is the default implementation of [MapDecoder.DecodeMap].
 func decodeMap(values url.Values, v any) error {

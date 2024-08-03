@@ -97,27 +97,29 @@ func LogE(msg string, args ...any) {
 }
 
 // LogIfErr logs err at [slog.LevelError] with [RawLogger] if err != nil.
-// The log message has attribute {"err":err}.
+// The log message has attribute {"err":err}. LogIfErr returns err.
 // This function is convenient to log non-nil return value.
 // For example:
 //
 //	LogIfErr(g.JSON(v))
-func LogIfErr(err error) {
+func LogIfErr(err error) error {
 	if err != nil {
 		logImpl(slog.LevelError, "", "err", err)
 	}
+	return err
 }
 
 // LogIfErrT logs ret and err at [slog.LevelError] with [RawLogger] if err != nil.
-// The log message has attribute {"ret": ret, "err":err}.
+// The log message has attribute {"ret": ret, "err":err}. LogIfErrorT returns err.
 // This function is convenient to log non-nil return value.
 // For example:
 //
 //	LogIfErrT(fmt.Println("msg"))
-func LogIfErrT[T any](ret T, err error) {
+func LogIfErrT[T any](ret T, err error) error {
 	if err != nil {
 		logImpl(slog.LevelError, "", "ret", ret, "err", err)
 	}
+	return err
 }
 
 // DecodeBody parses body and stores the result in the value pointed to by v.
@@ -127,14 +129,20 @@ func (g *Gear) DecodeBody(v any) error {
 	return encoding.DecodeBody(g.R, nil, v)
 }
 
-// MustDecodeBody calls [Gear.DecodeBody]. If DecodeBody returns an error, MustDecodeBody returns it but also
+// mustDecode calls f(g, v). If f returns an error, mustDecode returns it but also
 // writes a http.StatusBadRequest response and stops the middleware processing.
-func (g *Gear) MustDecodeBody(v any) (err error) {
-	if err = g.DecodeBody(v); err != nil {
+func mustDecode(g *Gear, f func(g *Gear, v any) (err error), v any) (err error) {
+	if err = f(g, v); err != nil {
 		g.Error(http.StatusBadRequest)
 		g.Stop()
 	}
 	return
+}
+
+// MustDecodeBody calls [Gear.DecodeBody]. If DecodeBody returns an error, MustDecodeBody returns it but also
+// writes a http.StatusBadRequest response and stops the middleware processing.
+func (g *Gear) MustDecodeBody(v any) (err error) {
+	return mustDecode(g, (*Gear).DecodeBody, v)
 }
 
 // DecodeFrom calls g.R.ParseForm(), decodes g.R.Form and stores the result in the value pointed by v.
@@ -145,19 +153,34 @@ func (g *Gear) DecodeForm(v any) error {
 	return encoding.DecodeForm(g.R, nil, v)
 }
 
-// DecodeHeader decodes g.R.Header and stores the result in the value pointed by v.
-func (g *Gear) DecodeHeader(v any) error {
-	return encoding.DecodeHeader(g.R, encoding.DefaultHeaderDecoder, v)
-}
-
 // MustDecodeForm calls [Gear.DecodeForm]. If DecodeForm returns an error, MustDecodeForm returns it but also
 // writes a http.StatusBadRequest response and stops the middleware processing.
 func (g *Gear) MustDecodeForm(v any) (err error) {
-	if err = g.DecodeForm(v); err != nil {
-		g.Error(http.StatusBadRequest)
-		g.Stop()
-	}
-	return
+	return mustDecode(g, (*Gear).DecodeForm, v)
+}
+
+// DecodeHeader decodes g.R.Header and stores the result in the value pointed by v.
+// See [encoding.DecodeForm] for more details.
+func (g *Gear) DecodeHeader(v any) error {
+	return encoding.DecodeHeader(g.R, encoding.HeaderDecoder, v)
+}
+
+// MustDecodeHeader calls [Gear.DecodeHeader]. If DecodeHeader returns an error, MustDecodeHeader returns it but also
+// writes a http.StatusBadRequest response and stops the middleware processing.
+func (g *Gear) MustDecodeHeader(v any) (err error) {
+	return mustDecode(g, (*Gear).DecodeHeader, v)
+}
+
+// DecodeQuery decodes r.URL.Query() and stores the result in the value pointed by v.
+// See [encoding.DecodeForm] for more details.
+func (g *Gear) DecodeQuery(v any) error {
+	return encoding.DecodeQuery(g.R, encoding.HeaderDecoder, v)
+}
+
+// MustDecodeQuery calls [Gear.DecodeQuery]. If DecodeQuery returns an error, MustDecodeHeader returns it but also
+// writes a http.StatusBadRequest response and stops the middleware processing.
+func (g *Gear) MustDecodeQuery(v any) (err error) {
+	return mustDecode(g, (*Gear).DecodeQuery, v)
 }
 
 // WriteError writes error code and status text using http.Error().
@@ -168,6 +191,12 @@ func (g *Gear) Error(code int) {
 // Write copies data from r to g.W.
 func (g *Gear) Write(r io.Reader) error {
 	_, err := io.Copy(g.W, r)
+	return err
+}
+
+// String writes body to g.W.
+func (g *Gear) String(body string) error {
+	_, err := io.WriteString(g.W, body)
 	return err
 }
 
@@ -309,6 +338,11 @@ func (group *Group) Handle(pattern string, handler http.Handler, middlewares ...
 		Wrap(handler,
 			append(middlewares, group.middlewares...)...)) // group middlewares take precedence.
 	return group
+}
+
+// HandleFunc converts f to [http.HandlerFunc] and then call [Handle].
+func (group *Group) HandleFunc(pattern string, f func(w http.ResponseWriter, r *http.Request), middlewares ...Middleware) *Group {
+	return group.Handle(pattern, http.HandlerFunc(f), middlewares...)
 }
 
 // Group creates a new URL prefix: path.Join(parent.prefix, prefix).

@@ -338,3 +338,23 @@ func TestDecodeHeader(t *testing.T) {
 		t.Fatal(header)
 	}
 }
+
+func TestDecodeQuery(t *testing.T) {
+	var mux http.ServeMux
+	type User struct {
+		Username string `map:"user"`
+	}
+	var user User
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var g = gear.G(r)
+		if err := g.DecodeQuery(&user); err != nil {
+			t.Fatal(err)
+		}
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+	geartest.Curl(server.URL + "/?user=abc&id=100")
+	if user.Username != "abc" {
+		t.Fatal(user)
+	}
+}

@@ -132,3 +132,22 @@ func ExampleLogger() {
 	})
 	gear.ListenAndServe(":http", nil, logger)
 }
+
+func ExampleGear_DecodeBody() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		type User struct {
+			Name string `map:"user"`
+			ID   int    `map:"id"`
+		}
+		var user User
+		gear.G(r).DecodeBody(&user)
+		// If the client posts a body:
+		//
+		// {
+		//   "user": "USER1",
+		//   "id": 100,
+		// }
+		//
+		// user equals User{"USER1", 100}
+	})
+}

@@ -32,7 +32,7 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}
 
 	var s S1
-	if err := encoding.DefaultFormDecoder.DecodeMap(values, &s); err != nil {
+	if err := encoding.FormDecoder.DecodeMap(values, &s); err != nil {
 		t.Fatal(err)
 	} else {
 		var _10 = 10
@@ -51,14 +51,14 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}
 
 	var m1 map[string][]string
-	if err := encoding.DefaultFormDecoder.DecodeMap(values, &m1); err != nil {
+	if err := encoding.FormDecoder.DecodeMap(values, &m1); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(url.Values(m1), values) {
 		t.Fatal(m1)
 	}
 
 	var m2 map[string]string
-	if err := encoding.DefaultFormDecoder.DecodeMap(values, &m2); err != nil {
+	if err := encoding.FormDecoder.DecodeMap(values, &m2); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(m2, map[string]string{
 		"k1": "1",
@@ -73,7 +73,7 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}
 
 	var m3 map[string]any
-	if err := encoding.DefaultFormDecoder.DecodeMap(values, &m3); err != nil {
+	if err := encoding.FormDecoder.DecodeMap(values, &m3); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(m3, map[string]any{
 		"k1": "1",
