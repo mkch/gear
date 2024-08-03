@@ -228,7 +228,12 @@ func decodeMap(values url.Values, v any) error {
 		if !field.IsExported() || field.Anonymous {
 			continue
 		}
-		tag, _ := field.Tag.Lookup(mapDecoderTag)
+		tag, ok := field.Tag.Lookup(mapDecoderTag)
+		if !ok {
+			//If the tag does not have the conventional format,
+			// the value returned by Lookup is unspecified
+			tag = ""
+		}
 		if tag == "-" {
 			continue // ignore
 		}
