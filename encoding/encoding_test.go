@@ -10,7 +10,7 @@ import (
 
 	"github.com/mkch/gear"
 	"github.com/mkch/gear/encoding"
-	"github.com/mkch/gear/impl/geartest"
+	"github.com/mkch/gear/internal/geartest"
 )
 
 func TestDefaultFormDecoder(t *testing.T) {
