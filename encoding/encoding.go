@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,12 +24,15 @@ func (f BodyDecoderFunc) DecodeBody(body io.Reader, v any) error {
 	return f(body, v)
 }
 
-func jsonBodyDecoder(body io.Reader, v any) error {
+// JSONBodyDecoder decodes body as JSON object.
+var JSONBodyDecoder BodyDecoder = BodyDecoderFunc(func(body io.Reader, v any) error {
 	return json.NewDecoder(body).Decode(v)
-}
+})
 
-// JSONBodyDecoder decodes body into JSON object.
-var JSONBodyDecoder BodyDecoder = BodyDecoderFunc(jsonBodyDecoder)
+// XMLBodyDecoder decodes body as XML document.
+var XMLBodyDecoder BodyDecoder = BodyDecoderFunc(func(body io.Reader, v any) error {
+	return xml.NewDecoder(body).Decode(v)
+})
 
 // UnknownContentType is returned by [DecodeBody] if there is no such [BodyDecoder] to decode the body.
 type UnknownContentType string
@@ -52,12 +56,16 @@ func DecodeBody(r *http.Request, decoder BodyDecoder, v any) (err error) {
 }
 
 const (
-	MIME_JSON = "application/json"
+	MIME_JSON     = "application/json"
+	MIME_XML      = "application/xml"
+	MIME_TEXT_XML = "text/xml"
 )
 
 // key is the content type.
 var bodyDecoders = map[string]BodyDecoder{
-	MIME_JSON: JSONBodyDecoder,
+	MIME_JSON:     JSONBodyDecoder,
+	MIME_XML:      XMLBodyDecoder,
+	MIME_TEXT_XML: XMLBodyDecoder,
 }
 
 // selectBodyDecoder returns an decoder from bodyDecoders which can decode the

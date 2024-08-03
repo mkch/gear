@@ -49,6 +49,38 @@ func TestJSONBodyDecoder(t *testing.T) {
 	}
 }
 
+func TestXMLBodyDecoder(t *testing.T) {
+	var respBody = "abc\ndef"
+	var mux http.ServeMux
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		g := gear.G(r)
+		var data struct {
+			N int
+			S string
+		}
+		err := g.MustDecodeBody(&data)
+		if err != nil {
+			t.Log(err)
+			return
+		}
+		if data.N != 1 || data.S != "str" {
+			g.Error(http.StatusBadRequest)
+			return
+		}
+		io.WriteString(w, respBody)
+	})
+	server := gear.NewTestServer(&mux)
+	defer server.Close()
+
+	body, vars := geartest.CurlPOST(server.URL, "text/xml", `<xml2> <N>1</N> <S>str</S> </xml>`, "-w", "\n%{http_code}")
+	if code := vars["response_code"]; code.(float64) != float64(200) {
+		t.Fatal(code)
+	}
+	if string(body) != respBody {
+		t.Fatal(string(body))
+	}
+}
+
 func TestMiddleWare(t *testing.T) {
 	var logs []string
 	var logMiddleware = gear.MiddlewareFuncWitName(func(g *gear.Gear, next func(*gear.Gear)) {
