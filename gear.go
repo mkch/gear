@@ -195,7 +195,7 @@ func (g *Gear) Write(r io.Reader) error {
 	return err
 }
 
-// String writes 200 and body to the response.
+// String writes and body to the response.
 func (g *Gear) String(body string) error {
 	_, err := io.WriteString(g.W, body)
 	return err
