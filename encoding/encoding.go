@@ -39,7 +39,7 @@ var XMLBodyDecoder BodyDecoder = BodyDecoderFunc(func(body io.Reader, v any) err
 type UnknownMIMEError string
 
 func (err UnknownMIMEError) Error() string {
-	return fmt.Sprintf("known Content-Type %v", string(err))
+	return fmt.Sprintf("unknown Content-Type %v", string(err))
 }
 
 // DecodeBody decodes r.Body using decoder and stores the result in the value pointed to by v.
