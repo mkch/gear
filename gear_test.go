@@ -64,7 +64,7 @@ func TestXMLBodyDecoder(t *testing.T) {
 			return
 		}
 		if data.N != 1 || data.S != "str" {
-			g.Error(http.StatusBadRequest)
+			g.Code(http.StatusBadRequest)
 			return
 		}
 		io.WriteString(w, respBody)

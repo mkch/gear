@@ -40,7 +40,7 @@ func (p panicRecovery) Serve(g *Gear, next func(*Gear)) {
 				attrs = append(attrs, slog.Any("stack", runtimegg.Stack(1, 0))) // 1: skip this anonymous function.
 			}
 			RawLogger.LogAttrs(context.Background(), slog.LevelError, "recovered from panic", attrs...)
-			g.Error(http.StatusInternalServerError)
+			g.Code(http.StatusInternalServerError)
 			g.Stop()
 		}
 	}()

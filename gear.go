@@ -3,6 +3,7 @@ package gear
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -133,7 +134,7 @@ func (g *Gear) DecodeBody(v any) error {
 // writes a http.StatusBadRequest response and stops the middleware processing.
 func mustDecode(g *Gear, f func(g *Gear, v any) (err error), v any) (err error) {
 	if err = f(g, v); err != nil {
-		g.Error(http.StatusBadRequest)
+		g.Code(http.StatusBadRequest)
 		g.Stop()
 	}
 	return
@@ -183,26 +184,49 @@ func (g *Gear) MustDecodeQuery(v any) (err error) {
 	return mustDecode(g, (*Gear).DecodeQuery, v)
 }
 
-// WriteError writes error code and status text using http.Error().
-func (g *Gear) Error(code int) {
+// Code writes code and status text using http.Code().
+func (g *Gear) Code(code int) {
 	http.Error(g.W, http.StatusText(code), code)
 }
 
-// Write copies data from r to g.W.
+// Write copies data from r to the response.
 func (g *Gear) Write(r io.Reader) error {
 	_, err := io.Copy(g.W, r)
 	return err
 }
 
-// String writes body to g.W.
+// String writes 200 and body to the response.
 func (g *Gear) String(body string) error {
 	_, err := io.WriteString(g.W, body)
 	return err
 }
 
-// JSON writes JSON encoding ov v to g.W.
+// StringResponse writes code and body to the response.
+func (g *Gear) StringResponse(code int, body string) error {
+	g.W.WriteHeader(code)
+	_, err := io.WriteString(g.W, body)
+	return err
+}
+
+// StringResponsef writes code and then call fmt.Fprintf() to write the formated string.
+func (g *Gear) StringResponsef(code int, format string, a ...any) error {
+	// from http.Error(server.go)
+	g.W.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	g.W.Header().Set("X-Content-Type-Options", "nosniff")
+	g.W.WriteHeader(code)
+	_, err := fmt.Fprintf(g.W, format+"\n", a...)
+	return err
+}
+
+// JSON writes JSON encoding of v to the response.
 func (g *Gear) JSON(v any) error {
 	return encoding.EncodeJSON(v, g.W)
+}
+
+// JSONResponse writes code and JSON encoding of v to the response.
+func (g *Gear) JSONResponse(code int, v any) error {
+	g.W.WriteHeader(code)
+	return g.JSON(v)
 }
 
 // G retrives the Gear in r. It panics if no Gear.
