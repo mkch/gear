@@ -72,7 +72,7 @@ func TestXMLBodyDecoder(t *testing.T) {
 	server := gear.NewTestServer(&mux)
 	defer server.Close()
 
-	body, vars := geartest.CurlPOST(server.URL, "text/xml", `<xml2> <N>1</N> <S>str</S> </xml>`, "-w", "\n%{http_code}")
+	body, vars := geartest.CurlPOST(server.URL, "text/xml", `<xml> <N>1</N> <S>str</S> </xml>`, "-w", "\n%{http_code}")
 	if code := vars["response_code"]; code.(float64) != float64(200) {
 		t.Fatal(code)
 	}
