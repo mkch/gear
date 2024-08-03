@@ -62,18 +62,20 @@ const (
 )
 
 // key is the content type.
-var bodyDecoders = map[string]BodyDecoder{
-	MIME_JSON:     JSONBodyDecoder,
-	MIME_XML:      XMLBodyDecoder,
-	MIME_TEXT_XML: XMLBodyDecoder,
+var bodyDecoders = map[string]*BodyDecoder{
+	MIME_JSON:     &JSONBodyDecoder,
+	MIME_XML:      &XMLBodyDecoder,
+	MIME_TEXT_XML: &XMLBodyDecoder,
 }
 
 // selectBodyDecoder returns an decoder from bodyDecoders which can decode the
 // body of r. The selection is made by Content-Type header.
 func selectBodyDecoder(r *http.Request) (decoder BodyDecoder, err error) {
 	mime := r.Header.Get("Content-Type")
-	if decoder = bodyDecoders[mime]; decoder == nil {
+	if p := bodyDecoders[mime]; p == nil {
 		err = UnknownContentType(mime)
+	} else {
+		decoder = *p
 	}
 	return
 }

@@ -1,11 +1,16 @@
 package encoding_test
 
 import (
+	"errors"
+	"io"
+	"net/http"
 	"net/url"
 	"reflect"
 	"testing"
 
+	"github.com/mkch/gear"
 	"github.com/mkch/gear/encoding"
+	"github.com/mkch/gear/impl/geartest"
 )
 
 func TestDefaultFormDecoder(t *testing.T) {
@@ -86,4 +91,21 @@ func TestDefaultFormDecoder(t *testing.T) {
 	}) {
 		t.Fatal(m2)
 	}
+}
+
+func TestCustomDecoder(t *testing.T) {
+	var errCustomDecoder = errors.New("custom")
+	// This should take effect and cause gear.G(r).DecodeBody return sentinel error above.
+	encoding.JSONBodyDecoder = encoding.BodyDecoderFunc(func(body io.Reader, v any) error {
+		return errCustomDecoder
+	})
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var v string
+		if err := gear.G(r).DecodeBody(&v); err != errCustomDecoder {
+			t.Fatal()
+		}
+	})
+	server := gear.NewTestServer(nil)
+	defer server.Close()
+	geartest.CurlPOST(server.URL, encoding.MIME_JSON, `{}`, "-w", "\n%{http_code}")
 }
