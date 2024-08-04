@@ -125,3 +125,8 @@ func validate[T any](decode func(T, any) error, src T, dest any) (err error) {
 	}
 	return
 }
+
+// validateMap validates url.Values or http.Header.
+func validateMap[T ~map[string][]string](decode func(map[string][]string, any) error, src T, dest any) (err error) {
+	return validate(decode, src, dest)
+}

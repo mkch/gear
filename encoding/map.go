@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 	"time"
@@ -56,7 +55,7 @@ type MapValueUnmarshaler interface {
 
 // MapDecoderFunc is an adapter to allow the use of ordinary functions as [MapDecoder].
 // If f is a function with the appropriate signature, MapDecoderFunc(f) is a FormDecoder that calls f.
-type MapDecoderFunc func(values url.Values, v any) error
+type MapDecoderFunc func(values map[string][]string, v any) error
 
 func (f MapDecoderFunc) DecodeMap(values map[string][]string, v any) error {
 	return f(values, v)
@@ -120,7 +119,7 @@ func DecodeForm(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = FormDecoder
 	}
-	return validate[map[string][]string](decoder.DecodeMap, r.Form, v)
+	return validateMap(decoder.DecodeMap, r.Form, v)
 }
 
 // DecodeForm decodes r.Header using decoder and stores the result in the value pointed by v.
@@ -129,7 +128,7 @@ func DecodeHeader(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = HeaderDecoder
 	}
-	return validate[map[string][]string](decoder.DecodeMap, r.Header, v)
+	return validateMap(decoder.DecodeMap, r.Header, v)
 }
 
 // DecodeQuery decodes r.URL.Query() using decoder and stores the result in the value pointed by v.
@@ -138,7 +137,7 @@ func DecodeQuery(r *http.Request, decoder MapDecoder, v any) (err error) {
 	if decoder == nil {
 		decoder = QueryDecoder
 	}
-	return validate[map[string][]string](decoder.DecodeMap, r.URL.Query(), v)
+	return validateMap(decoder.DecodeMap, r.URL.Query(), v)
 }
 
 // HTTPDate is a timestamp used in HTTP headers such as IfModifiedSince, Date, Last-Modified.
@@ -175,8 +174,17 @@ var HeaderDecoder MapDecoder = defaultMapDecoder
 // QueryDecoder is the default [MapDecoder] implementation to decode URL queries.
 var QueryDecoder MapDecoder = defaultMapDecoder
 
+// mapGet returns the first associated value of key, or "".
+func mapGet(m map[string][]string, key string) string {
+	if s := m[key]; len(s) == 0 {
+		return ""
+	} else {
+		return s[0]
+	}
+}
+
 // decodeMap is the default implementation of [MapDecoder.DecodeMap].
-func decodeMap(values url.Values, v any) error {
+func decodeMap(values map[string][]string, v any) error {
 	typ := reflect.TypeOf(v)
 	val := reflect.ValueOf(v)
 	if typ == nil || typ.Kind() != reflect.Pointer || !val.IsValid() {
@@ -203,7 +211,7 @@ func decodeMap(values url.Values, v any) error {
 			*p = make(map[string]string)
 		}
 		for k := range values {
-			(*p)[k] = values.Get(k)
+			(*p)[k] = mapGet(values, k)
 		}
 		return nil
 	}
@@ -212,7 +220,7 @@ func decodeMap(values url.Values, v any) error {
 			*p = make(map[string]any)
 		}
 		for k := range values {
-			(*p)[k] = values.Get(k)
+			(*p)[k] = mapGet(values, k)
 		}
 		return nil
 	}
@@ -239,7 +247,7 @@ func decodeMap(values url.Values, v any) error {
 		}
 		// key to map
 		var key string = gg.If(tag != "", tag, field.Name)
-		if !values.Has(key) {
+		if _, ok := values[key]; !ok {
 			continue // key not found
 		}
 		if err := parseMapValue(values[key], val.Field(i)); err != nil {
